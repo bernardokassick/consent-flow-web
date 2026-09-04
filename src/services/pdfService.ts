@@ -1,7 +1,15 @@
 import { api } from "./api";
+import type { PdfField } from "../types/PdfField";
+import type { PdfTemplate } from "../types/PdfTemplate";
 
-export async function getPdfFields(templates: string[]) {
-    const response = await api.post<string[]>("/pdf/fields", {
+export async function getPdfTemplates(): Promise<PdfTemplate[]> {
+    const response = await api.get<PdfTemplate[]>("/pdf/templates");
+
+    return response.data;
+}
+
+export async function getPdfFields(templates: string[]): Promise<PdfField[]> {
+    const response = await api.post<PdfField[]>("/pdf/fields", {
         templates,
     });
 

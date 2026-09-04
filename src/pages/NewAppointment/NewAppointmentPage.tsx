@@ -1,27 +1,48 @@
+import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 
 import { useAppointment } from "../../hooks/useAppointment";
-import { getPdfFields } from "../../services/pdfService";
-import type { ConsentTemplate } from "../../types/consentTemplate";
+import { getPdfFields, getPdfTemplates } from "../../services/pdfService";
+import type { PdfTemplate } from "../../types/PdfTemplate";
 import "./NewAppointmentPage.css";
-
-const consentTemplates: ConsentTemplate[] = [
-    {
-        id: "template.pdf",
-        name: "Termo de Consentimento 1",
-        description: "Formulario com nome e endereco",
-    },
-    {
-        id: "template2.pdf",
-        name: "Termo de Consentimento 2",
-        description: "Formulario com paciente e ocupacao",
-    },
-];
 
 export function NewAppointmentPage() {
     const navigate = useNavigate();
     const { selectedTemplates, setFields, setSelectedTemplates } =
         useAppointment();
+    const [templates, setTemplates] = useState<PdfTemplate[]>([]);
+    const [isLoadingTemplates, setIsLoadingTemplates] = useState(true);
+    const [templatesError, setTemplatesError] = useState<string | null>(null);
+
+    useEffect(() => {
+        async function loadTemplates() {
+            try {
+                setIsLoadingTemplates(true);
+                setTemplatesError(null);
+
+                const data = await getPdfTemplates();
+                const availableTemplateIds = new Set(
+                    data.map((template) => template.id),
+                );
+
+                setTemplates(data);
+                setSelectedTemplates((currentTemplates) =>
+                    currentTemplates.filter((templateId) =>
+                        availableTemplateIds.has(templateId),
+                    ),
+                );
+            } catch (error) {
+                console.error(error);
+                setTemplatesError(
+                    "Não foi possível carregar os termos de consentimento.",
+                );
+            } finally {
+                setIsLoadingTemplates(false);
+            }
+        }
+
+        loadTemplates();
+    }, [setSelectedTemplates]);
 
     function toggleTemplate(templateId: string) {
         setSelectedTemplates((currentTemplates) => {
@@ -58,36 +79,71 @@ export function NewAppointmentPage() {
                     </p>
                 </div>
 
-                <div className="template-list">
-                    {consentTemplates.map((template) => {
-                        const isSelected = selectedTemplates.includes(template.id);
+                {isLoadingTemplates ? (
+                    <p className="template-status-message">
+                        Carregando termos de consentimento...
+                    </p>
+                ) : null}
 
-                        return (
-                            <label
-                                className={
-                                    isSelected
-                                        ? "template-option selected"
-                                        : "template-option"
-                                }
-                                key={template.id}
-                            >
-                                <input
-                                    checked={isSelected}
-                                    onChange={() => toggleTemplate(template.id)}
-                                    type="checkbox"
-                                />
-                                <span className="template-option-content">
-                                    <strong>{template.name}</strong>
-                                    <span>{template.description}</span>
-                                </span>
-                            </label>
-                        );
-                    })}
-                </div>
+                {templatesError ? (
+                    <p className="template-status-message error">
+                        {templatesError}
+                    </p>
+                ) : null}
+
+                {!isLoadingTemplates &&
+                !templatesError &&
+                templates.length === 0 ? (
+                    <p className="template-status-message">
+                        Nenhum termo de consentimento disponível.
+                    </p>
+                ) : null}
+
+                {!isLoadingTemplates &&
+                !templatesError &&
+                templates.length > 0 ? (
+                    <div className="template-list">
+                        {templates.map((template) => {
+                            const isSelected = selectedTemplates.includes(
+                                template.id,
+                            );
+
+                            return (
+                                <label
+                                    className={
+                                        isSelected
+                                            ? "template-option selected"
+                                            : "template-option"
+                                    }
+                                    key={template.id}
+                                >
+                                    <input
+                                        checked={isSelected}
+                                        onChange={() =>
+                                            toggleTemplate(template.id)
+                                        }
+                                        type="checkbox"
+                                    />
+                                    <span className="template-option-content">
+                                        <strong>{template.name}</strong>
+                                        <span className="template-file-name">
+                                            {template.id}
+                                        </span>
+                                        <span>{template.description}</span>
+                                    </span>
+                                </label>
+                            );
+                        })}
+                    </div>
+                ) : null}
 
                 <button
                     className="continue-button"
-                    disabled={selectedTemplates.length === 0}
+                    disabled={
+                        selectedTemplates.length === 0 ||
+                        isLoadingTemplates ||
+                        Boolean(templatesError)
+                    }
                     onClick={handleContinue}
                     type="button"
                 >

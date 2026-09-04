@@ -5,12 +5,6 @@ import { useAppointment } from "../../hooks/useAppointment";
 import { fillMultiplePdfs } from "../../services/pdfService";
 import "./AppointmentFillPage.css";
 
-function formatFieldLabel(field: string) {
-    const fieldWithSpaces = field.replaceAll("_", " ").trim();
-
-    return fieldWithSpaces.charAt(0).toUpperCase() + fieldWithSpaces.slice(1);
-}
-
 export function AppointmentFillPage() {
     const navigate = useNavigate();
     const {
@@ -84,17 +78,17 @@ export function AppointmentFillPage() {
 
                 <div className="appointment-field-list">
                     {fields.map((field) => (
-                        <div className="appointment-field" key={field}>
-                            <label htmlFor={`appointment-field-${field}`}>
-                                {formatFieldLabel(field)}
+                        <div className="appointment-field" key={field.key}>
+                            <label htmlFor={`appointment-field-${field.key}`}>
+                                {field.label}
                             </label>
                             <input
-                                id={`appointment-field-${field}`}
+                                id={`appointment-field-${field.key}`}
                                 onChange={(event) =>
-                                    updateFieldValue(field, event.target.value)
+                                    updateFieldValue(field.key, event.target.value)
                                 }
                                 type="text"
-                                value={values[field] ?? ""}
+                                value={values[field.key] ?? ""}
                             />
                         </div>
                     ))}

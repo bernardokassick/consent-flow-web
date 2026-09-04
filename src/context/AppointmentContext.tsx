@@ -3,6 +3,7 @@ import {
     useState,
 } from "react";
 
+import type { PdfField } from "../types/PdfField";
 import { AppointmentContext } from "./appointmentContextValue";
 
 type AppointmentProviderProps = {
@@ -11,7 +12,7 @@ type AppointmentProviderProps = {
 
 export function AppointmentProvider({ children }: AppointmentProviderProps) {
     const [selectedTemplates, setSelectedTemplates] = useState<string[]>([]);
-    const [fields, setFields] = useState<string[]>([]);
+    const [fields, setFields] = useState<PdfField[]>([]);
     const [values, setValues] = useState<Record<string, string>>({});
     const [generatedDocuments, setGeneratedDocuments] = useState<Blob | null>(
         null,
