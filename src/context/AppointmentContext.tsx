@@ -14,6 +14,7 @@ export function AppointmentProvider({ children }: AppointmentProviderProps) {
     const [selectedTemplates, setSelectedTemplates] = useState<string[]>([]);
     const [fields, setFields] = useState<PdfField[]>([]);
     const [values, setValues] = useState<Record<string, string>>({});
+    const [signatures, setSignatures] = useState<Record<string, string>>({});
     const [generatedDocuments, setGeneratedDocuments] = useState<Blob | null>(
         null,
     );
@@ -22,6 +23,7 @@ export function AppointmentProvider({ children }: AppointmentProviderProps) {
         setSelectedTemplates([]);
         setFields([]);
         setValues({});
+        setSignatures({});
         setGeneratedDocuments(null);
     }
 
@@ -31,10 +33,12 @@ export function AppointmentProvider({ children }: AppointmentProviderProps) {
                 selectedTemplates,
                 fields,
                 values,
+                signatures,
                 generatedDocuments,
                 setSelectedTemplates,
                 setFields,
                 setValues,
+                setSignatures,
                 setGeneratedDocuments,
                 resetAppointment,
             }}

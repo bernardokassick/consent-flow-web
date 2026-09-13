@@ -1,5 +1,6 @@
 import { useNavigate } from "react-router-dom";
 
+import { appPaths } from "../../routes/appPaths";
 import "./NewAppointmentCard.css";
 
 export function NewAppointmentCard() {
@@ -16,7 +17,7 @@ export function NewAppointmentCard() {
             </div>
             <button
                 className="new-appointment-button"
-                onClick={() => navigate("/agendamento/novo")}
+                onClick={() => navigate(appPaths.appointment.select)}
                 type="button"
             >
                 <span>Novo Agendamento</span>

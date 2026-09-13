@@ -1,23 +1,56 @@
+import { Link, NavLink, useLocation } from "react-router-dom";
+
+import { useAppointment } from "../../hooks/useAppointment";
+import { appPaths } from "../../routes/appPaths";
 import "./AppHeader.css";
 
-const navItems = ["Dashboard", "Pacientes", "Consentimentos", "Auditoria"];
+const navItems = [
+    {
+        label: "Dashboard",
+        path: appPaths.dashboard,
+    },
+    {
+        label: "Consentimentos",
+        path: appPaths.consents,
+    },
+];
 
 export function AppHeader() {
+    const location = useLocation();
+    const { resetAppointment } = useAppointment();
+    const isAppointmentFlow = location.pathname.startsWith("/agendamento");
+
+    function resetAppointmentFlowIfNeeded() {
+        if (isAppointmentFlow) {
+            resetAppointment();
+        }
+    }
+
     return (
         <header className="app-header">
-            <a className="brand" href="#" aria-label="ConsentFlow">
+            <Link
+                aria-label="ConsentFlow"
+                className="brand"
+                onClick={resetAppointmentFlowIfNeeded}
+                to={appPaths.dashboard}
+            >
                 ConsentFlow
-            </a>
+            </Link>
 
             <nav className="main-nav" aria-label="Navegacao principal">
                 {navItems.map((item) => (
-                    <a
-                        className={item === "Dashboard" ? "active" : ""}
-                        href="#"
-                        key={item}
+                    <NavLink
+                        className={({ isActive }) => (isActive ? "active" : "")}
+                        key={item.path}
+                        onClick={
+                            item.path === appPaths.dashboard
+                                ? resetAppointmentFlowIfNeeded
+                                : undefined
+                        }
+                        to={item.path}
                     >
-                        {item}
-                    </a>
+                        {item.label}
+                    </NavLink>
                 ))}
             </nav>
 

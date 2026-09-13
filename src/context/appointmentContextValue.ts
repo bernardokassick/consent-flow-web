@@ -6,10 +6,12 @@ export interface AppointmentContextType {
     selectedTemplates: string[];
     fields: PdfField[];
     values: Record<string, string>;
+    signatures: Record<string, string>;
     generatedDocuments: Blob | null;
     setSelectedTemplates: Dispatch<SetStateAction<string[]>>;
     setFields: Dispatch<SetStateAction<PdfField[]>>;
     setValues: Dispatch<SetStateAction<Record<string, string>>>;
+    setSignatures: Dispatch<SetStateAction<Record<string, string>>>;
     setGeneratedDocuments: Dispatch<SetStateAction<Blob | null>>;
     resetAppointment: () => void;
 }

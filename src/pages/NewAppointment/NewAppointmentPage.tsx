@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 
 import { useAppointment } from "../../hooks/useAppointment";
+import { appPaths } from "../../routes/appPaths";
 import { getPdfFields, getPdfTemplates } from "../../services/pdfService";
 import type { PdfTemplate } from "../../types/PdfTemplate";
 import "./NewAppointmentPage.css";
@@ -58,7 +59,7 @@ export function NewAppointmentPage() {
         const fields = await getPdfFields(selectedTemplates);
 
         setFields(fields);
-        navigate("/agendamento/preenchimento");
+        navigate(appPaths.appointment.fill);
     }
 
     return (

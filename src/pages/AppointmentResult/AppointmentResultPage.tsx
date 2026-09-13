@@ -1,6 +1,7 @@
 import { useNavigate } from "react-router-dom";
 
 import { useAppointment } from "../../hooks/useAppointment";
+import { appPaths } from "../../routes/appPaths";
 import "./AppointmentResultPage.css";
 
 export function AppointmentResultPage() {
@@ -26,7 +27,7 @@ export function AppointmentResultPage() {
 
     function goToDashboard() {
         resetAppointment();
-        navigate("/dashboard");
+        navigate(appPaths.dashboard);
     }
 
     if (!generatedDocuments) {
@@ -36,7 +37,7 @@ export function AppointmentResultPage() {
                     <h1>Nenhum documento gerado foi encontrado.</h1>
                     <button
                         className="appointment-result-primary-button"
-                        onClick={() => navigate("/agendamento/novo")}
+                        onClick={() => navigate(appPaths.appointment.select)}
                         type="button"
                     >
                         Voltar para novo agendamento
@@ -74,7 +75,7 @@ export function AppointmentResultPage() {
                     </button>
                     <button
                         className="appointment-result-secondary-button"
-                        onClick={() => navigate("/agendamento/preenchimento")}
+                        onClick={() => navigate(appPaths.appointment.fill)}
                         type="button"
                     >
                         Editar dados
