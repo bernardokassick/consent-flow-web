@@ -1,4 +1,5 @@
 export const appPaths = {
+    login: "/login",
     dashboard: "/dashboard",
     consents: "/consentimentos",
     appointment: {

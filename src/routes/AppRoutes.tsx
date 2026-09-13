@@ -7,14 +7,23 @@ import { AppointmentResultPage } from "../pages/AppointmentResult/AppointmentRes
 import { AppointmentSignaturePage } from "../pages/AppointmentSignature/AppointmentSignaturePage";
 import { ConsentsPage } from "../pages/Consents/ConsentsPage";
 import { DashboardPage } from "../pages/Dashboard/DashboardPage";
+import { LoginPage } from "../pages/Login/LoginPage";
 import { NewAppointmentPage } from "../pages/NewAppointment/NewAppointmentPage";
 import { appPaths } from "./appPaths";
+import { ProtectedRoute } from "./ProtectedRoute";
 
 export function AppRoutes() {
     return (
         <BrowserRouter>
             <Routes>
-                <Route element={<AppLayout />}>
+                <Route path={`${appPaths.login}/*`} element={<LoginPage />} />
+                <Route
+                    element={
+                        <ProtectedRoute>
+                            <AppLayout />
+                        </ProtectedRoute>
+                    }
+                >
                     <Route
                         path="/"
                         element={<Navigate to={appPaths.dashboard} replace />}

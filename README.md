@@ -76,4 +76,4 @@ export default defineConfig([
 ])
 
 ```
-# consent-flow-web
+# pivatto-docs-web
