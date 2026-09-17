@@ -1,9 +1,15 @@
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
 
 import { DateInput } from "../../components/DateInput/DateInput";
+import { DoctorSelect } from "../../components/DoctorSelect/DoctorSelect";
+import { ErrorMessage } from "../../components/ErrorMessage/ErrorMessage";
 import { useAppointment } from "../../hooks/useAppointment";
 import { appPaths } from "../../routes/appPaths";
+import { getDoctors } from "../../services/doctorService";
+import type { Doctor } from "../../types/Doctor";
 import type { PdfField, PdfFieldType } from "../../types/PdfField";
+import { getApiErrorMessage, isRequestCanceled } from "../../utils/apiError";
 import { formatCpf, formatPhone } from "../../utils/masks";
 import "./AppointmentFillPage.css";
 
@@ -18,7 +24,7 @@ const fieldOrders = {
         "patient_profession",
     ],
     guardian: ["guardian_name", "guardian_cpf", "guardian_relationship"],
-    doctor: ["doctor_name", "doctor_crm", "doctor_specialty"],
+    doctor: ["doctor_specialty"],
 };
 
 const signatureFieldKeys = new Set([
@@ -26,13 +32,24 @@ const signatureFieldKeys = new Set([
     "doctor_signature",
     "guardian_signature",
 ]);
-
+const doctorFieldKeys = new Set([
+    "doctor_name",
+    "doctor_crm",
+    "doctor_specialty",
+    "doctor_signature",
+]);
+const hiddenDoctorInputKeys = new Set([
+    "doctor_name",
+    "doctor_crm",
+    "doctor_signature",
+]);
 const cpfFieldKeys = new Set(["patient_cpf", "guardian_cpf"]);
 const dateFieldKeys = new Set(["patient_birth_date", "signature_date"]);
 const phoneFieldKeys = new Set(["patient_phone"]);
 const emailFieldKeys = new Set(["patient_email"]);
 
 type AppointmentFieldSection = {
+    kind: "default" | "doctor";
     title: string;
     fields: PdfField[];
 };
@@ -92,12 +109,15 @@ function getFieldClassName(field: PdfField) {
         "patient_address",
         "patient_profession",
         "guardian_name",
-        "doctor_name",
     ]);
 
     return fullWidthFields.has(field.key)
         ? "appointment-field full-width"
         : "appointment-field";
+}
+
+function hasDoctorFields(fields: PdfField[]) {
+    return fields.some((field) => doctorFieldKeys.has(field.key));
 }
 
 function groupFieldsBySection(fields: PdfField[]): AppointmentFieldSection[] {
@@ -111,24 +131,35 @@ function groupFieldsBySection(fields: PdfField[]): AppointmentFieldSection[] {
         fieldOrders.guardian,
     );
     const doctorFields = sortFieldsByPreferredOrder(
-        textFields.filter((field) => field.key.startsWith("doctor_")),
+        textFields.filter(
+            (field) =>
+                field.key.startsWith("doctor_") &&
+                !hiddenDoctorInputKeys.has(field.key),
+        ),
         fieldOrders.doctor,
     );
 
     return [
         {
+            kind: "default" as const,
             title: "Informações do paciente",
             fields: patientFields,
         },
         {
+            kind: "default" as const,
             title: "Informações do responsável",
             fields: guardianFields,
         },
-        {
-            title: "Informações do médico",
-            fields: doctorFields,
-        },
-    ].filter((section) => section.fields.length > 0);
+        hasDoctorFields(fields)
+            ? {
+                  kind: "doctor" as const,
+                  title: "Informações do médico",
+                  fields: doctorFields,
+              }
+            : null,
+    ].filter((section): section is AppointmentFieldSection =>
+        Boolean(section && (section.kind === "doctor" || section.fields.length > 0)),
+    );
 }
 
 function getInputMode(fieldType: PdfFieldType) {
@@ -183,17 +214,101 @@ function formatFieldValue(fieldType: PdfFieldType, value: string) {
     return value;
 }
 
+function getSectionDescription(section: AppointmentFieldSection) {
+    if (section.kind === "doctor" && section.fields.length > 0) {
+        return "Selecione o médico responsável e complete as informações adicionais exigidas.";
+    }
+
+    if (section.kind === "doctor") {
+        return "Selecione o médico responsável pelos documentos do atendimento.";
+    }
+
+    return "Preencha os campos encontrados nos termos de consentimento.";
+}
+
 export function AppointmentFillPage() {
     const navigate = useNavigate();
     const {
         fields,
+        selectedDoctorId,
         selectedTemplates,
+        setSelectedDoctorId,
         setValues,
         values,
     } = useAppointment();
+    const [doctors, setDoctors] = useState<Doctor[]>([]);
+    const [isLoadingDoctors, setIsLoadingDoctors] = useState(false);
+    const [doctorLoadError, setDoctorLoadError] = useState<string | null>(null);
+    const [doctorValidationError, setDoctorValidationError] = useState<
+        string | null
+    >(null);
+    const isLoadingDoctorsRef = useRef(false);
+    const doctorsRequestIdRef = useRef(0);
     const hasAppointmentData =
         selectedTemplates.length > 0 && fields.length > 0;
+    const requiresDoctor = useMemo(() => hasDoctorFields(fields), [fields]);
     const fieldSections = groupFieldsBySection(fields);
+
+    async function loadDoctors(signal?: AbortSignal) {
+        if (isLoadingDoctorsRef.current) {
+            return;
+        }
+
+        const requestId = doctorsRequestIdRef.current + 1;
+
+        doctorsRequestIdRef.current = requestId;
+
+        try {
+            isLoadingDoctorsRef.current = true;
+            setIsLoadingDoctors(true);
+            setDoctorLoadError(null);
+
+            const doctorsResponse = await getDoctors(signal);
+
+            if (signal?.aborted || requestId !== doctorsRequestIdRef.current) {
+                return;
+            }
+
+            setDoctors(doctorsResponse);
+        } catch (error) {
+            if (isRequestCanceled(error)) {
+                return;
+            }
+
+            if (requestId !== doctorsRequestIdRef.current) {
+                return;
+            }
+
+            console.error(error);
+
+            setDoctorLoadError(
+                getApiErrorMessage(
+                    error,
+                    "Não foi possível carregar os médicos. Tente novamente.",
+                ),
+            );
+        } finally {
+            if (requestId === doctorsRequestIdRef.current) {
+                isLoadingDoctorsRef.current = false;
+                setIsLoadingDoctors(false);
+            }
+        }
+    }
+
+    useEffect(() => {
+        if (!requiresDoctor) {
+            return;
+        }
+
+        const controller = new AbortController();
+
+        loadDoctors(controller.signal);
+
+        return () => {
+            isLoadingDoctorsRef.current = false;
+            controller.abort();
+        };
+    }, [requiresDoctor]);
 
     function updateFieldValue(field: string, value: string) {
         setValues((currentValues) => ({
@@ -202,12 +317,132 @@ export function AppointmentFillPage() {
         }));
     }
 
+    function updateDoctorSelection(doctorId: string) {
+        const doctor = doctors.find((doctorItem) => doctorItem.id === doctorId);
+
+        setDoctorValidationError(null);
+
+        if (!doctor) {
+            setSelectedDoctorId(null);
+            setValues((currentValues) => {
+                const nextValues = { ...currentValues };
+
+                delete nextValues.doctor_name;
+                delete nextValues.doctor_crm;
+
+                return nextValues;
+            });
+            return;
+        }
+
+        setSelectedDoctorId(doctor.id);
+        setValues((currentValues) => ({
+            ...currentValues,
+            doctor_name: doctor.name,
+            doctor_crm: doctor.crm,
+        }));
+    }
+
     function goToReviewStep() {
         if (!hasAppointmentData) {
             return;
         }
 
+        if (requiresDoctor && !selectedDoctorId) {
+            setDoctorValidationError("Selecione o médico responsável.");
+            return;
+        }
+
         navigate(appPaths.appointment.review);
+    }
+
+    function renderField(field: PdfField) {
+        const fieldType = resolveFieldType(field);
+
+        return (
+            <div className={getFieldClassName(field)} key={field.key}>
+                {fieldType === "DATE" ? (
+                    <DateInput
+                        id={`appointment-field-${field.key}`}
+                        label={field.label}
+                        maxDate={
+                            field.key === "patient_birth_date"
+                                ? new Date()
+                                : undefined
+                        }
+                        onChange={(value) => updateFieldValue(field.key, value)}
+                        value={values[field.key] ?? ""}
+                    />
+                ) : (
+                    <>
+                        <label htmlFor={`appointment-field-${field.key}`}>
+                            {field.label}
+                        </label>
+                        <input
+                            autoComplete={getAutoComplete(fieldType)}
+                            id={`appointment-field-${field.key}`}
+                            inputMode={getInputMode(fieldType)}
+                            onChange={(event) =>
+                                updateFieldValue(
+                                    field.key,
+                                    formatFieldValue(
+                                        fieldType,
+                                        event.target.value,
+                                    ),
+                                )
+                            }
+                            type={getInputType(fieldType)}
+                            value={values[field.key] ?? ""}
+                        />
+                    </>
+                )}
+            </div>
+        );
+    }
+
+    function renderDoctorSection(section: AppointmentFieldSection) {
+        return (
+            <>
+                <div className="doctor-selection-field">
+                    <label>Médico responsável</label>
+                    <DoctorSelect
+                        doctors={doctors}
+                        error={
+                            doctorLoadError
+                                ? "Não foi possível carregar os médicos."
+                                : null
+                        }
+                        loading={isLoadingDoctors}
+                        onChange={updateDoctorSelection}
+                        value={selectedDoctorId ?? ""}
+                    />
+
+                    {doctorLoadError ? (
+                        <ErrorMessage
+                            actionDisabled={isLoadingDoctors}
+                            actionLabel={
+                                isLoadingDoctors
+                                    ? "Carregando..."
+                                    : "Tentar novamente"
+                            }
+                            message="Não foi possível carregar os médicos."
+                            onAction={loadDoctors}
+                        />
+                    ) : null}
+                    {doctorValidationError ? (
+                        <p className="appointment-field-error">
+                            {doctorValidationError}
+                        </p>
+                    ) : null}
+                </div>
+
+                {section.fields.length > 0 ? (
+                    <div className="appointment-field-list doctor-extra-fields">
+                        {section.fields.map(renderField)}
+                    </div>
+                ) : null}
+            </>
+        );
     }
 
     if (!hasAppointmentData) {
@@ -239,72 +474,16 @@ export function AppointmentFillPage() {
                     <div className="appointment-fill-card" key={section.title}>
                         <div className="appointment-fill-card-header">
                             <h2>{section.title}</h2>
-                            <p>
-                                Preencha os campos encontrados nos termos de
-                                consentimento.
-                            </p>
+                            <p>{getSectionDescription(section)}</p>
                         </div>
 
-                        <div className="appointment-field-list">
-                            {section.fields.map((field) => {
-                                const fieldType = resolveFieldType(field);
-
-                                return (
-                                    <div
-                                        className={getFieldClassName(field)}
-                                        key={field.key}
-                                    >
-                                        {fieldType === "DATE" ? (
-                                            <DateInput
-                                                id={`appointment-field-${field.key}`}
-                                                label={field.label}
-                                                maxDate={
-                                                    field.key ===
-                                                    "patient_birth_date"
-                                                        ? new Date()
-                                                        : undefined
-                                                }
-                                                onChange={(value) =>
-                                                    updateFieldValue(
-                                                        field.key,
-                                                        value,
-                                                    )
-                                                }
-                                                value={values[field.key] ?? ""}
-                                            />
-                                        ) : (
-                                            <>
-                                                <label
-                                                    htmlFor={`appointment-field-${field.key}`}
-                                                >
-                                                    {field.label}
-                                                </label>
-                                                <input
-                                                    autoComplete={getAutoComplete(
-                                                        fieldType,
-                                                    )}
-                                                    id={`appointment-field-${field.key}`}
-                                                    inputMode={getInputMode(
-                                                        fieldType,
-                                                    )}
-                                                    onChange={(event) =>
-                                                        updateFieldValue(
-                                                            field.key,
-                                                            formatFieldValue(
-                                                                fieldType,
-                                                                event.target.value,
-                                                            ),
-                                                        )
-                                                    }
-                                                    type={getInputType(fieldType)}
-                                                    value={values[field.key] ?? ""}
-                                                />
-                                            </>
-                                        )}
-                                    </div>
-                                );
-                            })}
-                        </div>
+                        {section.kind === "doctor" ? (
+                            renderDoctorSection(section)
+                        ) : (
+                            <div className="appointment-field-list">
+                                {section.fields.map(renderField)}
+                            </div>
+                        )}
                     </div>
                 ))}
 
@@ -318,6 +497,7 @@ export function AppointmentFillPage() {
                     </button>
                     <button
                         className="generate-documents-button"
+                        disabled={requiresDoctor && Boolean(doctorLoadError)}
                         onClick={goToReviewStep}
                         type="button"
                     >

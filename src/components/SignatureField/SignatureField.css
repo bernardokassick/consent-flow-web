@@ -38,6 +38,11 @@
     outline-offset: 2px;
 }
 
+.signature-canvas.disabled {
+    cursor: not-allowed;
+    opacity: 0.72;
+}
+
 .clear-signature-button {
     justify-self: start;
     min-width: 150px;
@@ -59,6 +64,12 @@
     border-color: #9fc4ee;
     background: #f1f7ff;
     transform: translateY(-1px);
+}
+
+.clear-signature-button:disabled {
+    cursor: not-allowed;
+    opacity: 0.56;
+    transform: none;
 }
 
 @media (max-width: 820px) {

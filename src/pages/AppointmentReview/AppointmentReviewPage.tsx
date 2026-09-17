@@ -1,6 +1,8 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
 
+import { ErrorMessage } from "../../components/ErrorMessage/ErrorMessage";
+import { LoadingSpinner } from "../../components/LoadingSpinner/LoadingSpinner";
 import { useAppointment } from "../../hooks/useAppointment";
 import { appPaths } from "../../routes/appPaths";
 import {
@@ -8,6 +10,7 @@ import {
     previewPdf,
 } from "../../services/pdfService";
 import type { PdfTemplate } from "../../types/PdfTemplate";
+import { getApiErrorMessage, isRequestCanceled } from "../../utils/apiError";
 import "./AppointmentReviewPage.css";
 
 export function AppointmentReviewPage() {
@@ -19,41 +22,77 @@ export function AppointmentReviewPage() {
     >(selectedTemplates[0] ?? null);
     const [isLoadingTemplates, setIsLoadingTemplates] = useState(true);
     const [templatesError, setTemplatesError] = useState<string | null>(null);
+    const isLoadingTemplatesRef = useRef(false);
+    const templatesRequestIdRef = useRef(0);
     const [previewUrl, setPreviewUrl] = useState<string | null>(null);
     const previewUrlRef = useRef<string | null>(null);
     const [isLoadingPreview, setIsLoadingPreview] = useState(false);
     const [previewError, setPreviewError] = useState<string | null>(null);
+    const [previewRetryKey, setPreviewRetryKey] = useState(0);
+    const abortPreviewRef = useRef<AbortController | null>(null);
     const hasAppointmentData =
         selectedTemplates.length > 0 && fields.length > 0;
+
+    async function loadTemplates(signal?: AbortSignal) {
+        if (isLoadingTemplatesRef.current) {
+            return;
+        }
+
+        const requestId = templatesRequestIdRef.current + 1;
+
+        templatesRequestIdRef.current = requestId;
+
+        try {
+            isLoadingTemplatesRef.current = true;
+            setIsLoadingTemplates(true);
+            setTemplatesError(null);
+
+            const data = await getPdfTemplates(signal);
+
+            if (signal?.aborted || requestId !== templatesRequestIdRef.current) {
+                return;
+            }
+
+            setTemplates(
+                data.filter((template) => selectedTemplates.includes(template.id)),
+            );
+        } catch (error) {
+            if (isRequestCanceled(error)) {
+                return;
+            }
+
+            if (requestId !== templatesRequestIdRef.current) {
+                return;
+            }
+
+            console.error(error);
+            setTemplatesError(
+                getApiErrorMessage(
+                    error,
+                    "Não foi possível carregar os termos selecionados.",
+                ),
+            );
+        } finally {
+            if (requestId === templatesRequestIdRef.current) {
+                isLoadingTemplatesRef.current = false;
+                setIsLoadingTemplates(false);
+            }
+        }
+    }
 
     useEffect(() => {
         if (!hasAppointmentData) {
             return;
         }
 
-        async function loadTemplates() {
-            try {
-                setIsLoadingTemplates(true);
-                setTemplatesError(null);
+        const controller = new AbortController();
 
-                const data = await getPdfTemplates();
+        loadTemplates(controller.signal);
 
-                setTemplates(
-                    data.filter((template) =>
-                        selectedTemplates.includes(template.id),
-                    ),
-                );
-            } catch (error) {
-                console.error(error);
-                setTemplatesError(
-                    "Não foi possível carregar os termos selecionados.",
-                );
-            } finally {
-                setIsLoadingTemplates(false);
-            }
-        }
-
-        loadTemplates();
+        return () => {
+            isLoadingTemplatesRef.current = false;
+            controller.abort();
+        };
     }, [hasAppointmentData, selectedTemplates]);
 
     const selectedTemplate = useMemo(
@@ -74,7 +113,10 @@ export function AppointmentReviewPage() {
         }
 
         const templateId = selectedPreviewTemplate;
-        let shouldIgnorePreview = false;
+        const controller = new AbortController();
+
+        abortPreviewRef.current?.abort();
+        abortPreviewRef.current = controller;
 
         async function loadPreview() {
             try {
@@ -87,9 +129,13 @@ export function AppointmentReviewPage() {
                 setIsLoadingPreview(true);
                 setPreviewError(null);
 
-                const previewBlob = await previewPdf(templateId, values);
+                const previewBlob = await previewPdf(
+                    templateId,
+                    values,
+                    controller.signal,
+                );
 
-                if (shouldIgnorePreview) {
+                if (controller.signal.aborted) {
                     return;
                 }
 
@@ -98,21 +144,26 @@ export function AppointmentReviewPage() {
                 previewUrlRef.current = nextPreviewUrl;
                 setPreviewUrl(nextPreviewUrl);
             } catch (error) {
+                if (isRequestCanceled(error)) {
+                    return;
+                }
+
                 console.error(error);
 
-                if (!shouldIgnorePreview) {
-                    if (previewUrlRef.current) {
-                        URL.revokeObjectURL(previewUrlRef.current);
-                        previewUrlRef.current = null;
-                    }
-
-                    setPreviewUrl(null);
-                    setPreviewError(
-                        "Não foi possível carregar o preview deste documento.",
-                    );
+                if (previewUrlRef.current) {
+                    URL.revokeObjectURL(previewUrlRef.current);
+                    previewUrlRef.current = null;
                 }
+
+                setPreviewUrl(null);
+                setPreviewError(
+                    getApiErrorMessage(
+                        error,
+                        "Não foi possível carregar a visualização deste documento.",
+                    ),
+                );
             } finally {
-                if (!shouldIgnorePreview) {
+                if (!controller.signal.aborted) {
                     setIsLoadingPreview(false);
                 }
             }
@@ -121,12 +172,14 @@ export function AppointmentReviewPage() {
         loadPreview();
 
         return () => {
-            shouldIgnorePreview = true;
+            controller.abort();
         };
-    }, [hasAppointmentData, selectedPreviewTemplate, values]);
+    }, [hasAppointmentData, previewRetryKey, selectedPreviewTemplate, values]);
 
     useEffect(
         () => () => {
+            abortPreviewRef.current?.abort();
+
             if (previewUrlRef.current) {
                 URL.revokeObjectURL(previewUrlRef.current);
                 previewUrlRef.current = null;
@@ -173,14 +226,21 @@ export function AppointmentReviewPage() {
 
                     {isLoadingTemplates ? (
                         <p className="review-status-message">
-                            Carregando documentos...
+                            <LoadingSpinner /> Carregando documentos...
                         </p>
                     ) : null}
 
                     {templatesError ? (
-                        <p className="review-status-message error">
-                            {templatesError}
-                        </p>
+                        <ErrorMessage
+                            actionDisabled={isLoadingTemplates}
+                            actionLabel={
+                                isLoadingTemplates
+                                    ? "Carregando..."
+                                    : "Tentar novamente"
+                            }
+                            message={templatesError}
+                            onAction={loadTemplates}
+                        />
                     ) : null}
 
                     {!isLoadingTemplates &&
@@ -207,6 +267,7 @@ export function AppointmentReviewPage() {
                                                 : "review-document-item"
                                         }
                                         key={template.id}
+                                        disabled={isLoadingPreview && isSelected}
                                         onClick={() =>
                                             setSelectedPreviewTemplate(template.id)
                                         }
@@ -257,11 +318,24 @@ export function AppointmentReviewPage() {
 
                     <div className="review-pdf-frame">
                         {isLoadingPreview ? (
-                            <p>Gerando preview do documento...</p>
+                            <p>
+                                <LoadingSpinner /> Carregando documento...
+                            </p>
                         ) : null}
 
                         {previewError ? (
-                            <p className="review-preview-error">{previewError}</p>
+                            <ErrorMessage
+                                actionDisabled={isLoadingPreview}
+                                actionLabel={
+                                    isLoadingPreview
+                                        ? "Carregando..."
+                                        : "Tentar novamente"
+                                }
+                                message={previewError}
+                                onAction={() =>
+                                    setPreviewRetryKey((currentKey) => currentKey + 1)
+                                }
+                            />
                         ) : null}
 
                         {previewUrl && !isLoadingPreview && !previewError ? (

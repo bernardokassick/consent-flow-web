@@ -1,11 +1,14 @@
 import { SignIn, useAuth } from "@clerk/react";
-import { Navigate } from "react-router-dom";
+import { Navigate, useSearchParams } from "react-router-dom";
 
+import { ErrorMessage } from "../../components/ErrorMessage/ErrorMessage";
 import { appPaths } from "../../routes/appPaths";
 import "./LoginPage.css";
 
 export function LoginPage() {
+    const [searchParams] = useSearchParams();
     const { isLoaded, isSignedIn } = useAuth();
+    const hasExpiredSession = searchParams.get("sessionExpired") === "1";
 
     if (!isLoaded) {
         return <div className="auth-loading">Carregando autenticação...</div>;
@@ -23,6 +26,10 @@ export function LoginPage() {
                     <h1>Acesse sua conta</h1>
                     <p>Entre para gerenciar consentimentos e atendimentos.</p>
                 </div>
+
+                {hasExpiredSession ? (
+                    <ErrorMessage message="Sua sessão expirou. Entre novamente para continuar." />
+                ) : null}
 
                 <SignIn
                     fallbackRedirectUrl={appPaths.dashboard}

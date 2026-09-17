@@ -8,6 +8,7 @@ import {
 import "./SignatureField.css";
 
 interface SignatureFieldProps {
+    disabled?: boolean;
     label: string;
     value?: string;
     onChange: (value: string) => void;
@@ -26,7 +27,12 @@ function isValidSignatureDataUrl(value?: string): value is string {
     return Boolean(value?.startsWith("data:image/png;base64,"));
 }
 
-export function SignatureField({ label, value, onChange }: SignatureFieldProps) {
+export function SignatureField({
+    disabled = false,
+    label,
+    value,
+    onChange,
+}: SignatureFieldProps) {
     const canvasRef = useRef<HTMLCanvasElement | null>(null);
     const isDrawingRef = useRef(false);
 
@@ -119,6 +125,10 @@ export function SignatureField({ label, value, onChange }: SignatureFieldProps) 
     }
 
     function handlePointerDown(event: PointerEvent<HTMLCanvasElement>) {
+        if (disabled) {
+            return;
+        }
+
         const context = getCanvasContext(event.currentTarget);
 
         if (!context) {
@@ -166,6 +176,10 @@ export function SignatureField({ label, value, onChange }: SignatureFieldProps) 
     }
 
     function clearSignature() {
+        if (disabled) {
+            return;
+        }
+
         const canvas = canvasRef.current;
 
         if (!canvas) {
@@ -188,7 +202,9 @@ export function SignatureField({ label, value, onChange }: SignatureFieldProps) 
 
             <canvas
                 aria-label={label}
-                className="signature-canvas"
+                className={
+                    disabled ? "signature-canvas disabled" : "signature-canvas"
+                }
                 onPointerCancel={finishDrawing}
                 onPointerDown={handlePointerDown}
                 onPointerLeave={finishDrawing}
@@ -199,6 +215,7 @@ export function SignatureField({ label, value, onChange }: SignatureFieldProps) 
 
             <button
                 className="clear-signature-button"
+                disabled={disabled}
                 onClick={clearSignature}
                 type="button"
             >

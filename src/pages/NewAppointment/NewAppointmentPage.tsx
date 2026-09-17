@@ -1,10 +1,13 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
 
+import { ErrorMessage } from "../../components/ErrorMessage/ErrorMessage";
+import { LoadingSpinner } from "../../components/LoadingSpinner/LoadingSpinner";
 import { useAppointment } from "../../hooks/useAppointment";
 import { appPaths } from "../../routes/appPaths";
 import { getPdfFields, getPdfTemplates } from "../../services/pdfService";
 import type { PdfTemplate } from "../../types/PdfTemplate";
+import { getApiErrorMessage, isRequestCanceled } from "../../utils/apiError";
 import "./NewAppointmentPage.css";
 
 export function NewAppointmentPage() {
@@ -14,35 +17,75 @@ export function NewAppointmentPage() {
     const [templates, setTemplates] = useState<PdfTemplate[]>([]);
     const [isLoadingTemplates, setIsLoadingTemplates] = useState(true);
     const [templatesError, setTemplatesError] = useState<string | null>(null);
+    const [continueError, setContinueError] = useState<string | null>(null);
+    const [isContinuing, setIsContinuing] = useState(false);
+    const isLoadingTemplatesRef = useRef(false);
+    const templatesRequestIdRef = useRef(0);
+    const isContinuingRef = useRef(false);
 
-    useEffect(() => {
-        async function loadTemplates() {
-            try {
-                setIsLoadingTemplates(true);
-                setTemplatesError(null);
+    async function loadTemplates(signal?: AbortSignal) {
+        if (isLoadingTemplatesRef.current) {
+            return;
+        }
 
-                const data = await getPdfTemplates();
-                const availableTemplateIds = new Set(
-                    data.map((template) => template.id),
-                );
+        const requestId = templatesRequestIdRef.current + 1;
 
-                setTemplates(data);
-                setSelectedTemplates((currentTemplates) =>
-                    currentTemplates.filter((templateId) =>
-                        availableTemplateIds.has(templateId),
-                    ),
-                );
-            } catch (error) {
-                console.error(error);
-                setTemplatesError(
+        templatesRequestIdRef.current = requestId;
+
+        try {
+            isLoadingTemplatesRef.current = true;
+            setIsLoadingTemplates(true);
+            setTemplatesError(null);
+
+            const data = await getPdfTemplates(signal);
+
+            if (signal?.aborted || requestId !== templatesRequestIdRef.current) {
+                return;
+            }
+
+            const availableTemplateIds = new Set(
+                data.map((template) => template.id),
+            );
+
+            setTemplates(data);
+            setSelectedTemplates((currentTemplates) =>
+                currentTemplates.filter((templateId) =>
+                    availableTemplateIds.has(templateId),
+                ),
+            );
+        } catch (error) {
+            if (isRequestCanceled(error)) {
+                return;
+            }
+
+            if (requestId !== templatesRequestIdRef.current) {
+                return;
+            }
+
+            console.error(error);
+            setTemplatesError(
+                getApiErrorMessage(
+                    error,
                     "Não foi possível carregar os termos de consentimento.",
-                );
-            } finally {
+                ),
+            );
+        } finally {
+            if (requestId === templatesRequestIdRef.current) {
+                isLoadingTemplatesRef.current = false;
                 setIsLoadingTemplates(false);
             }
         }
+    }
 
-        loadTemplates();
+    useEffect(() => {
+        const controller = new AbortController();
+
+        loadTemplates(controller.signal);
+
+        return () => {
+            isLoadingTemplatesRef.current = false;
+            controller.abort();
+        };
     }, [setSelectedTemplates]);
 
     function toggleTemplate(templateId: string) {
@@ -56,10 +99,31 @@ export function NewAppointmentPage() {
     }
 
     async function handleContinue() {
-        const fields = await getPdfFields(selectedTemplates);
+        if (isContinuingRef.current) {
+            return;
+        }
 
-        setFields(fields);
-        navigate(appPaths.appointment.fill);
+        try {
+            isContinuingRef.current = true;
+            setIsContinuing(true);
+            setContinueError(null);
+
+            const fields = await getPdfFields(selectedTemplates);
+
+            setFields(fields);
+            navigate(appPaths.appointment.fill);
+        } catch (error) {
+            console.error(error);
+            setContinueError(
+                getApiErrorMessage(
+                    error,
+                    "Não foi possível carregar os campos dos documentos.",
+                ),
+            );
+        } finally {
+            isContinuingRef.current = false;
+            setIsContinuing(false);
+        }
     }
 
     return (
@@ -82,14 +146,19 @@ export function NewAppointmentPage() {
 
                 {isLoadingTemplates ? (
                     <p className="template-status-message">
-                        Carregando termos de consentimento...
+                        <LoadingSpinner /> Carregando termos de consentimento...
                     </p>
                 ) : null}
 
                 {templatesError ? (
-                    <p className="template-status-message error">
-                        {templatesError}
-                    </p>
+                    <ErrorMessage
+                        actionDisabled={isLoadingTemplates}
+                        actionLabel={
+                            isLoadingTemplates ? "Carregando..." : "Tentar novamente"
+                        }
+                        message={templatesError}
+                        onAction={loadTemplates}
+                    />
                 ) : null}
 
                 {!isLoadingTemplates &&
@@ -143,13 +212,21 @@ export function NewAppointmentPage() {
                     disabled={
                         selectedTemplates.length === 0 ||
                         isLoadingTemplates ||
-                        Boolean(templatesError)
+                        Boolean(templatesError) ||
+                        isContinuing
                     }
                     onClick={handleContinue}
                     type="button"
                 >
-                    Continuar
+                    {isContinuing ? (
+                        <>
+                            <LoadingSpinner /> Carregando...
+                        </>
+                    ) : (
+                        "Continuar"
+                    )}
                 </button>
+                {continueError ? <ErrorMessage message={continueError} /> : null}
             </div>
         </section>
     );

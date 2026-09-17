@@ -14,11 +14,11 @@ export function AppointmentResultPage() {
             return;
         }
 
-        const downloadUrl = URL.createObjectURL(generatedDocuments);
+        const downloadUrl = URL.createObjectURL(generatedDocuments.blob);
         const downloadLink = document.createElement("a");
 
         downloadLink.href = downloadUrl;
-        downloadLink.download = "documentos-preenchidos.zip";
+        downloadLink.download = generatedDocuments.filename || "documentos.zip";
         document.body.append(downloadLink);
         downloadLink.click();
         downloadLink.remove();

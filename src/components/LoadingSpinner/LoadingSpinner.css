@@ -1,0 +1,15 @@
+.loading-spinner {
+    display: inline-block;
+    width: 16px;
+    height: 16px;
+    border: 2px solid currentColor;
+    border-right-color: transparent;
+    border-radius: 999px;
+    animation: loading-spinner-rotate 760ms linear infinite;
+}
+
+@keyframes loading-spinner-rotate {
+    to {
+        transform: rotate(360deg);
+    }
+}
