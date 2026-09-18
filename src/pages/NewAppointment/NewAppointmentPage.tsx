@@ -23,6 +23,12 @@ export function NewAppointmentPage() {
     const isLoadingTemplatesRef = useRef(false);
     const templatesRequestIdRef = useRef(0);
     const isContinuingRef = useRef(false);
+    const availableTemplates = templates.filter(
+        (template) => !selectedTemplates.includes(template.id),
+    );
+    const selectedTemplateItems = templates.filter((template) =>
+        selectedTemplates.includes(template.id),
+    );
 
     async function loadTemplates(signal?: AbortSignal) {
         if (isLoadingTemplatesRef.current) {
@@ -99,6 +105,48 @@ export function NewAppointmentPage() {
         });
     }
 
+    function getAvailableCountLabel(count: number) {
+        return count === 1 ? "1 disponível" : `${count} disponíveis`;
+    }
+
+    function getSelectedCountLabel(count: number) {
+        return count === 1 ? "1 selecionado" : `${count} selecionados`;
+    }
+
+    function renderTemplateOption(
+        template: PdfTemplate,
+        action: "add" | "remove",
+    ) {
+        return (
+            <button
+                className={
+                    action === "remove"
+                        ? "template-option selected"
+                        : "template-option"
+                }
+                key={template.id}
+                onClick={() => toggleTemplate(template.id)}
+                type="button"
+            >
+                <span className="template-option-content">
+                    <strong>{template.name}</strong>
+                    <span className="template-file-name">{template.id}</span>
+                    <span>{template.description}</span>
+                </span>
+                <span
+                    aria-hidden="true"
+                    className={
+                        action === "remove"
+                            ? "template-option-action remove"
+                            : "template-option-action add"
+                    }
+                >
+                    {action === "remove" ? "×" : "+"}
+                </span>
+            </button>
+        );
+    }
+
     async function handleContinue() {
         if (isContinuingRef.current) {
             return;
@@ -131,8 +179,8 @@ export function NewAppointmentPage() {
     }
 
     return (
-        <section className="new-appointment-page">
-            <div className="new-appointment-heading">
+        <section className="appointment-flow-page new-appointment-page">
+            <div className="appointment-flow-heading new-appointment-heading">
                 <h1>Novo Agendamento</h1>
                 <p>
                     Crie um novo agendamento e selecione os termos de
@@ -140,8 +188,8 @@ export function NewAppointmentPage() {
                 </p>
             </div>
 
-            <div className="template-selection-card">
-                <div className="template-selection-header">
+            <div className="appointment-flow-card template-selection-card">
+                <div className="appointment-flow-card-header template-selection-header">
                     <h2>Selecione os termos de consentimento</h2>
                     <p>
                         Escolha quais documentos serao usados neste agendamento.
@@ -176,38 +224,60 @@ export function NewAppointmentPage() {
                 {!isLoadingTemplates &&
                 !templatesError &&
                 templates.length > 0 ? (
-                    <div className="template-list">
-                        {templates.map((template) => {
-                            const isSelected = selectedTemplates.includes(
-                                template.id,
-                            );
+                    <div className="template-selection-grid">
+                        <section
+                            className="template-column"
+                            aria-labelledby="available-templates-title"
+                        >
+                            <div className="template-column-header">
+                                <h3 id="available-templates-title">
+                                    Termos disponíveis
+                                </h3>
+                                <span>
+                                    {getAvailableCountLabel(
+                                        availableTemplates.length,
+                                    )}
+                                </span>
+                            </div>
 
-                            return (
-                                <label
-                                    className={
-                                        isSelected
-                                            ? "template-option selected"
-                                            : "template-option"
-                                    }
-                                    key={template.id}
-                                >
-                                    <input
-                                        checked={isSelected}
-                                        onChange={() =>
-                                            toggleTemplate(template.id)
-                                        }
-                                        type="checkbox"
-                                    />
-                                    <span className="template-option-content">
-                                        <strong>{template.name}</strong>
-                                        <span className="template-file-name">
-                                            {template.id}
-                                        </span>
-                                        <span>{template.description}</span>
+                            <div className="template-list">
+                                {availableTemplates.map((template) =>
+                                    renderTemplateOption(template, "add"),
+                                )}
+                            </div>
+                        </section>
+
+                        <section
+                            className="template-column"
+                            aria-labelledby="selected-templates-title"
+                        >
+                            <div className="template-column-header">
+                                <h3 id="selected-templates-title">
+                                    Termos selecionados
+                                </h3>
+                                <span>
+                                    {getSelectedCountLabel(
+                                        selectedTemplateItems.length,
+                                    )}
+                                </span>
+                            </div>
+
+                            {selectedTemplateItems.length > 0 ? (
+                                <div className="template-list">
+                                    {selectedTemplateItems.map((template) =>
+                                        renderTemplateOption(template, "remove"),
+                                    )}
+                                </div>
+                            ) : (
+                                <div className="selected-templates-empty">
+                                    <strong>Nenhum termo selecionado</strong>
+                                    <span>
+                                        Selecione um termo na lista ao lado para
+                                        adicioná-lo ao agendamento.
                                     </span>
-                                </label>
-                            );
-                        })}
+                                </div>
+                            )}
+                        </section>
                     </div>
                 ) : null}
 

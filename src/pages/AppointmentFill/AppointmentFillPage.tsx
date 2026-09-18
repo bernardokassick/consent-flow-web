@@ -467,8 +467,8 @@ export function AppointmentFillPage() {
 
     if (!hasAppointmentData) {
         return (
-            <section className="appointment-fill-page">
-                <div className="appointment-fill-empty-card">
+            <section className="appointment-flow-page appointment-fill-page">
+                <div className="appointment-flow-empty-card appointment-fill-empty-card">
                     <h1>Nenhum dado de agendamento foi encontrado.</h1>
                     <button
                         className="generate-documents-button"
@@ -483,16 +483,19 @@ export function AppointmentFillPage() {
     }
 
     return (
-        <section className="appointment-fill-page">
-            <div className="appointment-fill-heading">
+        <section className="appointment-flow-page appointment-fill-page">
+            <div className="appointment-flow-heading appointment-fill-heading">
                 <h1>Preenchimento do Agendamento</h1>
                 <p>Informe os dados que serao usados nos documentos selecionados.</p>
             </div>
 
             <div className="appointment-field-sections">
                 {fieldSections.map((section) => (
-                    <div className="appointment-fill-card" key={section.title}>
-                        <div className="appointment-fill-card-header">
+                    <div
+                        className="appointment-flow-card appointment-fill-card"
+                        key={section.title}
+                    >
+                        <div className="appointment-flow-card-header appointment-fill-card-header">
                             <h2>{section.title}</h2>
                             <p>{getSectionDescription(section)}</p>
                         </div>
