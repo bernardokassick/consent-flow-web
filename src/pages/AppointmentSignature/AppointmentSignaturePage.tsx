@@ -6,7 +6,7 @@ import { LoadingSpinner } from "../../components/LoadingSpinner/LoadingSpinner";
 import { SignatureStep } from "../../components/SignatureStep/SignatureStep";
 import { useAppointment } from "../../hooks/useAppointment";
 import { appPaths } from "../../routes/appPaths";
-import { fillMultiplePdfs } from "../../services/pdfService";
+import { createDocumentGeneration } from "../../services/pdfService";
 import { getApiErrorMessage } from "../../utils/apiError";
 import { formatCpf } from "../../utils/masks";
 import { filterSignaturesForFields } from "../../utils/signatures";
@@ -239,7 +239,7 @@ export function AppointmentSignaturePage() {
 
             const payloadSignatures = filterSignaturesForFields(signatures, fields);
 
-            const generatedDocuments = await fillMultiplePdfs(
+            const generatedDocuments = await createDocumentGeneration(
                 selectedTemplates,
                 values,
                 payloadSignatures,

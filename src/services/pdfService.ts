@@ -5,7 +5,7 @@ import type { PdfTemplate } from "../types/PdfTemplate";
 
 const defaultZipFilename = "documentos.zip";
 
-function parseContentDispositionFilename(contentDisposition?: string) {
+export function parseContentDispositionFilename(contentDisposition?: string) {
     if (!contentDisposition) {
         return defaultZipFilename;
     }
@@ -43,20 +43,28 @@ export async function getPdfFields(templates: string[]): Promise<PdfField[]> {
     return response.data;
 }
 
-export async function fillMultiplePdfs(
+export async function createDocumentGeneration(
     templates: string[],
     fields: Record<string, string>,
     signatures: Record<string, string>,
     doctorId: string | null,
 ): Promise<GeneratedDocuments> {
-    const response = await api.post(
-        "/pdf/fill-multiple",
+    const response = await api.post<GeneratedDocuments>(
+        "/document-generations",
         {
             templates,
             fields,
             signatures,
             doctorId,
         },
+    );
+
+    return response.data;
+}
+
+export async function downloadDocumentGeneration(generationId: string) {
+    const response = await api.get(
+        `/document-generations/${encodeURIComponent(generationId)}/download`,
         {
             responseType: "blob",
         },
@@ -68,6 +76,13 @@ export async function fillMultiplePdfs(
             response.headers["content-disposition"],
         ),
     };
+}
+
+export async function emailDocumentGeneration(generationId: string, to: string) {
+    await api.post(
+        `/document-generations/${encodeURIComponent(generationId)}/email`,
+        { to },
+    );
 }
 
 export async function previewPdf(

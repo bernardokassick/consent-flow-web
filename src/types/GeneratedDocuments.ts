@@ -1,4 +1,7 @@
 export interface GeneratedDocuments {
-    blob: Blob;
-    filename: string;
+    generationId: string;
+    expiresAt: string;
+    documents: {
+        filename: string;
+    }[];
 }

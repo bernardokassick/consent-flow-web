@@ -60,6 +60,30 @@
     font-weight: 750;
 }
 
+.appointment-result-success-message {
+    margin: 0;
+    padding: 12px 14px;
+    border: 1px solid #b9dec7;
+    border-radius: 10px;
+    color: #176534;
+    background: #f0f9f3;
+    font-size: 14px;
+    font-weight: 700;
+    line-height: 1.45;
+}
+
+.appointment-result-error-message {
+    margin: 0;
+    padding: 12px 14px;
+    border: 1px solid #f3c7cd;
+    border-radius: 10px;
+    color: #9f1627;
+    background: #fff5f6;
+    font-size: 14px;
+    font-weight: 700;
+    line-height: 1.45;
+}
+
 .appointment-result-actions {
     display: flex;
     align-items: center;
@@ -104,6 +128,137 @@
     transform: translateY(-1px);
 }
 
+.appointment-result-primary-button:disabled,
+.appointment-result-secondary-button:disabled {
+    cursor: not-allowed;
+    opacity: 0.56;
+    transform: none;
+}
+
+.email-modal-backdrop {
+    position: fixed;
+    inset: 0;
+    z-index: 20;
+    display: grid;
+    place-items: center;
+    padding: 32px;
+    background: rgb(15 23 42 / 48%);
+}
+
+.email-modal {
+    width: min(100%, 520px);
+    overflow: hidden;
+    border: 1px solid #e7edf6;
+    border-radius: 16px;
+    background: var(--surface);
+    box-shadow: 0 24px 58px rgb(15 23 42 / 24%);
+}
+
+.email-modal-header {
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: 20px;
+    padding: 24px 26px;
+    border-bottom: 1px solid #e7edf6;
+}
+
+.email-modal-header h2 {
+    margin: 0 0 8px;
+    color: var(--ink);
+    font-size: 24px;
+    line-height: 1.2;
+    letter-spacing: 0;
+}
+
+.email-modal-header p {
+    margin: 0;
+    color: var(--muted);
+    font-size: 16px;
+    font-weight: 600;
+    line-height: 1.5;
+}
+
+.email-modal-close-button {
+    display: grid;
+    width: 38px;
+    height: 38px;
+    flex: 0 0 auto;
+    place-items: center;
+    border: 1px solid #d9e4f2;
+    border-radius: 10px;
+    color: var(--ink);
+    background: #ffffff;
+    font-size: 24px;
+    line-height: 1;
+    cursor: pointer;
+}
+
+.email-modal-close-button:hover:not(:disabled),
+.email-modal-close-button:focus-visible {
+    border-color: #9fc4ee;
+    background: #f1f7ff;
+    outline: none;
+}
+
+.email-modal-close-button:disabled {
+    cursor: not-allowed;
+    opacity: 0.56;
+}
+
+.email-modal-form {
+    display: grid;
+    gap: 10px;
+    padding: 26px;
+}
+
+.email-modal-form label {
+    color: var(--ink);
+    font-size: 16px;
+    font-weight: 700;
+    line-height: 1.3;
+}
+
+.email-modal-form input {
+    width: 100%;
+    height: 54px;
+    padding: 0 16px;
+    border: 1px solid #dfe8f5;
+    border-radius: 10px;
+    color: var(--ink);
+    font-size: 16px;
+    background: #fbfdff;
+    outline: none;
+    transition:
+        border-color 160ms ease,
+        box-shadow 160ms ease;
+}
+
+.email-modal-form input:focus {
+    border-color: #9fc4ee;
+    box-shadow: 0 0 0 3px rgb(159 196 238 / 28%);
+}
+
+.email-modal-form input:disabled {
+    cursor: not-allowed;
+    opacity: 0.72;
+}
+
+.email-modal-error {
+    margin: 0;
+    color: #9f1627;
+    font-size: 14px;
+    font-weight: 650;
+    line-height: 1.4;
+}
+
+.email-modal-actions {
+    display: flex;
+    justify-content: flex-end;
+    gap: 12px;
+    margin-top: 14px;
+}
+
 @media (max-width: 820px) {
     .appointment-result-page {
         padding: 24px 18px;
@@ -126,5 +281,19 @@
         align-items: stretch;
         flex-direction: column-reverse;
         width: 100%;
+    }
+
+    .email-modal-backdrop {
+        padding: 18px;
+    }
+
+    .email-modal-header,
+    .email-modal-form {
+        padding: 22px;
+    }
+
+    .email-modal-actions {
+        align-items: stretch;
+        flex-direction: column-reverse;
     }
 }
