@@ -27,10 +27,17 @@ const fieldOrders = {
     doctor: ["doctor_specialty"],
 };
 
+const groupedFieldPrefixes = ["patient_", "guardian_", "doctor_"];
+
 const signatureFieldKeys = new Set([
     "patient_signature",
-    "doctor_signature",
     "guardian_signature",
+    "witness_1_signature",
+    "witness_2_signature",
+]);
+const backendManagedFields = new Set([
+    "signature_date",
+    "doctor_signature",
 ]);
 const doctorFieldKeys = new Set([
     "doctor_name",
@@ -56,6 +63,10 @@ type AppointmentFieldSection = {
 
 function isSignatureField(field: PdfField) {
     return field.type === "SIGNATURE" || signatureFieldKeys.has(field.key);
+}
+
+function isRenderableField(field: PdfField) {
+    return !isSignatureField(field) && !backendManagedFields.has(field.key);
 }
 
 function resolveFieldType(field: PdfField): PdfFieldType {
@@ -121,22 +132,26 @@ function hasDoctorFields(fields: PdfField[]) {
 }
 
 function groupFieldsBySection(fields: PdfField[]): AppointmentFieldSection[] {
-    const textFields = fields.filter((field) => !isSignatureField(field));
+    const renderableFields = fields.filter(isRenderableField);
     const patientFields = sortFieldsByPreferredOrder(
-        textFields.filter((field) => field.key.startsWith("patient_")),
+        renderableFields.filter((field) => field.key.startsWith("patient_")),
         fieldOrders.patient,
     );
     const guardianFields = sortFieldsByPreferredOrder(
-        textFields.filter((field) => field.key.startsWith("guardian_")),
+        renderableFields.filter((field) => field.key.startsWith("guardian_")),
         fieldOrders.guardian,
     );
     const doctorFields = sortFieldsByPreferredOrder(
-        textFields.filter(
+        renderableFields.filter(
             (field) =>
                 field.key.startsWith("doctor_") &&
                 !hiddenDoctorInputKeys.has(field.key),
         ),
         fieldOrders.doctor,
+    );
+    const otherFields = renderableFields.filter(
+        (field) =>
+            !groupedFieldPrefixes.some((prefix) => field.key.startsWith(prefix)),
     );
 
     return [
@@ -157,6 +172,11 @@ function groupFieldsBySection(fields: PdfField[]): AppointmentFieldSection[] {
                   fields: doctorFields,
               }
             : null,
+        {
+            kind: "default" as const,
+            title: "Outras informações",
+            fields: otherFields,
+        },
     ].filter((section): section is AppointmentFieldSection =>
         Boolean(section && (section.kind === "doctor" || section.fields.length > 0)),
     );

@@ -9,6 +9,7 @@ import { appPaths } from "../../routes/appPaths";
 import { fillMultiplePdfs } from "../../services/pdfService";
 import { getApiErrorMessage } from "../../utils/apiError";
 import { formatCpf } from "../../utils/masks";
+import { filterSignaturesForFields } from "../../utils/signatures";
 import "./AppointmentSignaturePage.css";
 
 const signatureStepIds = {
@@ -72,14 +73,16 @@ export function AppointmentSignaturePage() {
     const signatureSteps = useMemo<SignatureFlowStep[]>(() => {
         const steps: SignatureFlowStep[] = [];
 
-        steps.push({
-            description:
-                "Assine abaixo para confirmar que leu e compreendeu todos os termos de consentimento.",
-            id: signatureStepIds.patient,
-            signatureKey: patientSignatureKey,
-            signatureLabel: "Assinatura do paciente",
-            title: "Assinatura do paciente",
-        });
+        if (fieldKeys.has(patientSignatureKey)) {
+            steps.push({
+                description:
+                    "Assine abaixo para confirmar que leu e compreendeu todos os termos de consentimento.",
+                id: signatureStepIds.patient,
+                signatureKey: patientSignatureKey,
+                signatureLabel: "Assinatura do paciente",
+                title: "Assinatura do paciente",
+            });
+        }
 
         if (fieldKeys.has(guardianSignatureKey)) {
             steps.push({
@@ -95,11 +98,7 @@ export function AppointmentSignaturePage() {
         const witness1FieldKeys = getWitnessFieldKeys(1);
         const witness2FieldKeys = getWitnessFieldKeys(2);
 
-        if (
-            fieldKeys.has(witness1FieldKeys.name) ||
-            fieldKeys.has(witness1FieldKeys.cpf) ||
-            fieldKeys.has(witness1FieldKeys.signature)
-        ) {
+        if (fieldKeys.has(witness1FieldKeys.signature)) {
             steps.push({
                 description:
                     "Preencha os dados exigidos e colete a assinatura da testemunha.",
@@ -111,11 +110,7 @@ export function AppointmentSignaturePage() {
             });
         }
 
-        if (
-            fieldKeys.has(witness2FieldKeys.name) ||
-            fieldKeys.has(witness2FieldKeys.cpf) ||
-            fieldKeys.has(witness2FieldKeys.signature)
-        ) {
+        if (fieldKeys.has(witness2FieldKeys.signature)) {
             steps.push({
                 description:
                     "Preencha os dados exigidos e colete a assinatura da testemunha.",
@@ -242,10 +237,12 @@ export function AppointmentSignaturePage() {
             setIsGenerating(true);
             setError(null);
 
+            const payloadSignatures = filterSignaturesForFields(signatures, fields);
+
             const generatedDocuments = await fillMultiplePdfs(
                 selectedTemplates,
                 values,
-                signatures,
+                payloadSignatures,
                 selectedDoctorId,
             );
             setGeneratedDocuments(generatedDocuments);

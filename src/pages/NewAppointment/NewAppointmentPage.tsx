@@ -8,11 +8,12 @@ import { appPaths } from "../../routes/appPaths";
 import { getPdfFields, getPdfTemplates } from "../../services/pdfService";
 import type { PdfTemplate } from "../../types/PdfTemplate";
 import { getApiErrorMessage, isRequestCanceled } from "../../utils/apiError";
+import { filterSignaturesForFields } from "../../utils/signatures";
 import "./NewAppointmentPage.css";
 
 export function NewAppointmentPage() {
     const navigate = useNavigate();
-    const { selectedTemplates, setFields, setSelectedTemplates } =
+    const { selectedTemplates, setFields, setSelectedTemplates, setSignatures } =
         useAppointment();
     const [templates, setTemplates] = useState<PdfTemplate[]>([]);
     const [isLoadingTemplates, setIsLoadingTemplates] = useState(true);
@@ -111,6 +112,9 @@ export function NewAppointmentPage() {
             const fields = await getPdfFields(selectedTemplates);
 
             setFields(fields);
+            setSignatures((currentSignatures) =>
+                filterSignaturesForFields(currentSignatures, fields),
+            );
             navigate(appPaths.appointment.fill);
         } catch (error) {
             console.error(error);
