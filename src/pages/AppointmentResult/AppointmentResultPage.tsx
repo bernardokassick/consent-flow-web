@@ -40,7 +40,7 @@ export function AppointmentResultPage() {
                         onClick={() => navigate(appPaths.appointment.select)}
                         type="button"
                     >
-                        Voltar para novo agendamento
+                        Voltar para novo atendimento
                     </button>
                 </div>
             </section>

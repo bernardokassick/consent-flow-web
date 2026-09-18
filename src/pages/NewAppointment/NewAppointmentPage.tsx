@@ -13,8 +13,12 @@ import "./NewAppointmentPage.css";
 
 export function NewAppointmentPage() {
     const navigate = useNavigate();
-    const { selectedTemplates, setFields, setSelectedTemplates, setSignatures } =
-        useAppointment();
+    const {
+        selectedTemplates,
+        setFields,
+        setSelectedTemplates,
+        setSignatures,
+    } = useAppointment();
     const [templates, setTemplates] = useState<PdfTemplate[]>([]);
     const [isLoadingTemplates, setIsLoadingTemplates] = useState(true);
     const [templatesError, setTemplatesError] = useState<string | null>(null);
@@ -46,7 +50,10 @@ export function NewAppointmentPage() {
 
             const data = await getPdfTemplates(signal);
 
-            if (signal?.aborted || requestId !== templatesRequestIdRef.current) {
+            if (
+                signal?.aborted ||
+                requestId !== templatesRequestIdRef.current
+            ) {
                 return;
             }
 
@@ -119,6 +126,11 @@ export function NewAppointmentPage() {
     ) {
         return (
             <button
+                aria-label={
+                    action === "remove"
+                        ? `Remover ${template.name}`
+                        : `Adicionar ${template.name}`
+                }
                 className={
                     action === "remove"
                         ? "template-option selected"
@@ -181,18 +193,14 @@ export function NewAppointmentPage() {
     return (
         <section className="appointment-flow-page new-appointment-page">
             <div className="appointment-flow-heading new-appointment-heading">
-                <h1>Novo Agendamento</h1>
-                <p>
-                    Crie um novo agendamento e selecione os termos de
-                    consentimento.
-                </p>
+                <h1>Novo atendimento</h1>
             </div>
 
             <div className="appointment-flow-card template-selection-card">
                 <div className="appointment-flow-card-header template-selection-header">
                     <h2>Selecione os termos de consentimento</h2>
                     <p>
-                        Escolha quais documentos serao usados neste agendamento.
+                        Escolha quais documentos serao usados neste atendimento.
                     </p>
                 </div>
 
@@ -206,7 +214,9 @@ export function NewAppointmentPage() {
                     <ErrorMessage
                         actionDisabled={isLoadingTemplates}
                         actionLabel={
-                            isLoadingTemplates ? "Carregando..." : "Tentar novamente"
+                            isLoadingTemplates
+                                ? "Carregando..."
+                                : "Tentar novamente"
                         }
                         message={templatesError}
                         onAction={loadTemplates}
@@ -265,7 +275,10 @@ export function NewAppointmentPage() {
                             {selectedTemplateItems.length > 0 ? (
                                 <div className="template-list">
                                     {selectedTemplateItems.map((template) =>
-                                        renderTemplateOption(template, "remove"),
+                                        renderTemplateOption(
+                                            template,
+                                            "remove",
+                                        ),
                                     )}
                                 </div>
                             ) : (
@@ -273,7 +286,7 @@ export function NewAppointmentPage() {
                                     <strong>Nenhum termo selecionado</strong>
                                     <span>
                                         Selecione um termo na lista ao lado para
-                                        adicioná-lo ao agendamento.
+                                        adicioná-lo ao atendimento.
                                     </span>
                                 </div>
                             )}
@@ -300,7 +313,9 @@ export function NewAppointmentPage() {
                         "Continuar"
                     )}
                 </button>
-                {continueError ? <ErrorMessage message={continueError} /> : null}
+                {continueError ? (
+                    <ErrorMessage message={continueError} />
+                ) : null}
             </div>
         </section>
     );

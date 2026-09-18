@@ -80,7 +80,6 @@
 }
 
 .template-option:hover,
-.template-option.selected,
 .template-option:focus-visible {
     border-color: #9fc4ee;
     background: #f1f7ff;
@@ -88,9 +87,23 @@
     outline: none;
 }
 
+.template-option.selected {
+    border: 2px solid #9fc4ee;
+    background: var(--blue-100);
+    box-shadow: 0 10px 22px rgb(3 72 135 / 10%);
+}
+
+.template-option.selected:hover,
+.template-option.selected:focus-visible {
+    border-color: var(--blue-900);
+    background: #eaf3ff;
+    box-shadow: 0 12px 26px rgb(3 72 135 / 14%);
+    outline: none;
+}
+
 .template-option.selected:focus-visible {
     box-shadow:
-        0 10px 22px rgb(3 72 135 / 8%),
+        0 12px 26px rgb(3 72 135 / 14%),
         0 0 0 3px rgb(159 196 238 / 28%);
 }
 
@@ -140,7 +153,15 @@
 }
 
 .template-option-action.remove {
-    color: #9f1627;
+    color: #ffffff;
+    background: var(--blue-900);
+    box-shadow: none;
+    transition: background 160ms ease;
+}
+
+.template-option.selected:hover .template-option-action.remove,
+.template-option.selected:focus-visible .template-option-action.remove {
+    background: var(--blue-800);
 }
 
 .selected-templates-empty {

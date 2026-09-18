@@ -35,10 +35,7 @@ const signatureFieldKeys = new Set([
     "witness_1_signature",
     "witness_2_signature",
 ]);
-const backendManagedFields = new Set([
-    "signature_date",
-    "doctor_signature",
-]);
+const backendManagedFields = new Set(["signature_date", "doctor_signature"]);
 const doctorFieldKeys = new Set([
     "doctor_name",
     "doctor_crm",
@@ -151,7 +148,9 @@ function groupFieldsBySection(fields: PdfField[]): AppointmentFieldSection[] {
     );
     const otherFields = renderableFields.filter(
         (field) =>
-            !groupedFieldPrefixes.some((prefix) => field.key.startsWith(prefix)),
+            !groupedFieldPrefixes.some((prefix) =>
+                field.key.startsWith(prefix),
+            ),
     );
 
     return [
@@ -178,7 +177,9 @@ function groupFieldsBySection(fields: PdfField[]): AppointmentFieldSection[] {
             fields: otherFields,
         },
     ].filter((section): section is AppointmentFieldSection =>
-        Boolean(section && (section.kind === "doctor" || section.fields.length > 0)),
+        Boolean(
+            section && (section.kind === "doctor" || section.fields.length > 0),
+        ),
     );
 }
 
@@ -469,13 +470,13 @@ export function AppointmentFillPage() {
         return (
             <section className="appointment-flow-page appointment-fill-page">
                 <div className="appointment-flow-empty-card appointment-fill-empty-card">
-                    <h1>Nenhum dado de agendamento foi encontrado.</h1>
+                    <h1>Nenhum dado de atendimento foi encontrado.</h1>
                     <button
                         className="generate-documents-button"
                         onClick={() => navigate(appPaths.appointment.select)}
                         type="button"
                     >
-                        Voltar para novo agendamento
+                        Voltar para novo atendimento
                     </button>
                 </div>
             </section>
@@ -485,8 +486,11 @@ export function AppointmentFillPage() {
     return (
         <section className="appointment-flow-page appointment-fill-page">
             <div className="appointment-flow-heading appointment-fill-heading">
-                <h1>Preenchimento do Agendamento</h1>
-                <p>Informe os dados que serao usados nos documentos selecionados.</p>
+                <h1>Dados do atendimento</h1>
+                <p>
+                    Informe os dados que serão usados nos documentos
+                    selecionados.
+                </p>
             </div>
 
             <div className="appointment-field-sections">

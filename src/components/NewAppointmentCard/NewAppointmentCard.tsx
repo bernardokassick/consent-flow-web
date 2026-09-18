@@ -9,10 +9,10 @@ export function NewAppointmentCard() {
     return (
         <section className="appointment-hero">
             <div>
-                <h1>Novo Agendamento</h1>
+                <h1>Novo atendimento</h1>
                 <p>
-                    Agende uma nova visita do paciente e gere automaticamente os
-                    termos de consentimento necessarios para o procedimento.
+                    Inicie um novo atendimento, preencha os dados do paciente e
+                    gere os termos de consentimento necessários.
                 </p>
             </div>
             <button
@@ -20,7 +20,7 @@ export function NewAppointmentCard() {
                 onClick={() => navigate(appPaths.appointment.select)}
                 type="button"
             >
-                <span>Novo Agendamento</span>
+                <span>Novo atendimento</span>
                 <svg viewBox="0 0 24 24" aria-hidden="true">
                     <path d="M12 5v14M5 12h14" />
                 </svg>

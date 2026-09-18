@@ -193,13 +193,13 @@ export function AppointmentReviewPage() {
         return (
             <section className="appointment-review-page">
                 <div className="appointment-review-empty-card">
-                    <h1>Nenhum dado de agendamento foi encontrado.</h1>
+                    <h1>Nenhum dado de atendimento foi encontrado.</h1>
                     <button
                         className="review-primary-button"
                         onClick={() => navigate(appPaths.appointment.select)}
                         type="button"
                     >
-                        Voltar para novo agendamento
+                        Voltar para novo atendimento
                     </button>
                 </div>
             </section>
