@@ -9,7 +9,7 @@ export function NewAppointmentCard() {
     return (
         <section className="appointment-hero">
             <div>
-                <h1>Novo atendimento</h1>
+                <h1>Novo @atendimento</h1>
                 <p>
                     Inicie um novo atendimento, preencha os dados do paciente e
                     gere os termos de consentimento necessários.
