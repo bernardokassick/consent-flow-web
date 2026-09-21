@@ -200,38 +200,43 @@ export function AppointmentResultPage() {
                 </div>
 
                 <div className="appointment-result-actions">
-                    <button
-                        className="appointment-result-secondary-button"
-                        onClick={goToDashboard}
-                        type="button"
-                    >
-                        Voltar ao Dashboard
-                    </button>
-                    <button
-                        className="appointment-result-secondary-button"
-                        onClick={() => navigate(appPaths.appointment.fill)}
-                        type="button"
-                    >
-                        Editar dados
-                    </button>
-                    <button
-                        className="appointment-result-primary-button"
-                        disabled={isDownloading}
-                        onClick={() => {
-                            void downloadDocuments();
-                        }}
-                        type="button"
-                    >
-                        {isDownloading ? "Baixando..." : "Baixar documentos"}
-                    </button>
-                    <button
-                        className="appointment-result-primary-button"
-                        onClick={openEmailModal}
-                        ref={emailTriggerRef}
-                        type="button"
-                    >
-                        Enviar por e-mail
-                    </button>
+                    <div className="appointment-result-document-actions">
+                        <button
+                            className="appointment-result-primary-button"
+                            disabled={isDownloading}
+                            onClick={() => {
+                                void downloadDocuments();
+                            }}
+                            type="button"
+                        >
+                            {isDownloading ? "Baixando..." : "Baixar documentos"}
+                        </button>
+                        <button
+                            className="appointment-result-email-button"
+                            onClick={openEmailModal}
+                            ref={emailTriggerRef}
+                            type="button"
+                        >
+                            Enviar por e-mail
+                        </button>
+                    </div>
+
+                    <div className="appointment-result-navigation-actions">
+                        <button
+                            className="appointment-result-secondary-button"
+                            onClick={() => navigate(appPaths.appointment.fill)}
+                            type="button"
+                        >
+                            Editar dados
+                        </button>
+                        <button
+                            className="appointment-result-secondary-button"
+                            onClick={goToDashboard}
+                            type="button"
+                        >
+                            Voltar ao Dashboard
+                        </button>
+                    </div>
                 </div>
 
                 {emailSuccessMessage ? (

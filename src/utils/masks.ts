@@ -19,6 +19,33 @@ export function formatCpf(value: string): string {
     )}-${digits.slice(9)}`;
 }
 
+export function isValidCpf(value: string): boolean {
+    const digits = value.replace(/\D/g, "");
+
+    if (digits.length !== 11 || /^(\d)\1{10}$/.test(digits)) {
+        return false;
+    }
+
+    function calculateCheckDigit(base: string, initialWeight: number) {
+        const sum = [...base].reduce(
+            (total, digit, index) =>
+                total + Number(digit) * (initialWeight - index),
+            0,
+        );
+        const remainder = (sum * 10) % 11;
+
+        return remainder === 10 ? 0 : remainder;
+    }
+
+    const firstCheckDigit = calculateCheckDigit(digits.slice(0, 9), 10);
+    const secondCheckDigit = calculateCheckDigit(digits.slice(0, 10), 11);
+
+    return (
+        firstCheckDigit === Number(digits[9]) &&
+        secondCheckDigit === Number(digits[10])
+    );
+}
+
 export function formatDateInput(value: string): string {
     const digits = value.replace(/\D/g, "").slice(0, 8);
 

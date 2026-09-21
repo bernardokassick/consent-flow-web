@@ -10,7 +10,7 @@ import { getDoctors } from "../../services/doctorService";
 import type { Doctor } from "../../types/Doctor";
 import type { PdfField, PdfFieldType } from "../../types/PdfField";
 import { getApiErrorMessage, isRequestCanceled } from "../../utils/apiError";
-import { formatCpf, formatPhone } from "../../utils/masks";
+import { formatCpf, formatPhone, isValidCpf } from "../../utils/masks";
 import "./AppointmentFillPage.css";
 
 const fieldOrders = {
@@ -51,6 +51,9 @@ const cpfFieldKeys = new Set(["patient_cpf", "guardian_cpf"]);
 const dateFieldKeys = new Set(["patient_birth_date", "signature_date"]);
 const phoneFieldKeys = new Set(["patient_phone"]);
 const emailFieldKeys = new Set(["patient_email"]);
+const requiredPatientFieldKeys = new Set(["patient_name", "patient_cpf"]);
+
+type PatientFieldErrors = Partial<Record<"patient_name" | "patient_cpf", string>>;
 
 type AppointmentFieldSection = {
     kind: "default" | "doctor";
@@ -247,6 +250,29 @@ function getSectionDescription(section: AppointmentFieldSection) {
     return "Preencha os campos encontrados nos termos de consentimento.";
 }
 
+function getPatientFieldErrors(
+    fields: PdfField[],
+    values: Record<string, string>,
+): PatientFieldErrors {
+    const errors: PatientFieldErrors = {};
+    const fieldKeys = new Set(fields.map((field) => field.key));
+
+    if (fieldKeys.has("patient_name") && !values.patient_name?.trim()) {
+        errors.patient_name = "Nome do paciente é obrigatório.";
+    }
+
+    if (fieldKeys.has("patient_cpf") && !values.patient_cpf?.trim()) {
+        errors.patient_cpf = "CPF do paciente é obrigatório.";
+    } else if (
+        fieldKeys.has("patient_cpf") &&
+        !isValidCpf(values.patient_cpf)
+    ) {
+        errors.patient_cpf = "CPF inválido.";
+    }
+
+    return errors;
+}
+
 export function AppointmentFillPage() {
     const navigate = useNavigate();
     const {
@@ -263,12 +289,16 @@ export function AppointmentFillPage() {
     const [doctorValidationError, setDoctorValidationError] = useState<
         string | null
     >(null);
+    const [hasAttemptedToContinue, setHasAttemptedToContinue] = useState(false);
     const isLoadingDoctorsRef = useRef(false);
     const doctorsRequestIdRef = useRef(0);
     const hasAppointmentData =
         selectedTemplates.length > 0 && fields.length > 0;
     const requiresDoctor = useMemo(() => hasDoctorFields(fields), [fields]);
     const fieldSections = groupFieldsBySection(fields);
+    const patientFieldErrors = hasAttemptedToContinue
+        ? getPatientFieldErrors(fields, values)
+        : {};
 
     async function loadDoctors(signal?: AbortSignal) {
         if (isLoadingDoctorsRef.current) {
@@ -369,8 +399,19 @@ export function AppointmentFillPage() {
             return;
         }
 
+        setHasAttemptedToContinue(true);
+
+        const hasPatientFieldErrors =
+            Object.keys(getPatientFieldErrors(fields, values)).length > 0;
+
         if (requiresDoctor && !selectedDoctorId) {
             setDoctorValidationError("Selecione o médico responsável.");
+        }
+
+        if (
+            hasPatientFieldErrors ||
+            (requiresDoctor && !selectedDoctorId)
+        ) {
             return;
         }
 
@@ -379,6 +420,12 @@ export function AppointmentFillPage() {
 
     function renderField(field: PdfField) {
         const fieldType = resolveFieldType(field);
+        const isRequiredPatientField = requiredPatientFieldKeys.has(field.key);
+        const fieldError =
+            field.key === "patient_name" || field.key === "patient_cpf"
+                ? patientFieldErrors[field.key]
+                : undefined;
+        const errorId = `appointment-field-${field.key}-error`;
 
         return (
             <div className={getFieldClassName(field)} key={field.key}>
@@ -398,9 +445,20 @@ export function AppointmentFillPage() {
                     <>
                         <label htmlFor={`appointment-field-${field.key}`}>
                             {field.label}
+                            {isRequiredPatientField ? (
+                                <span
+                                    aria-hidden="true"
+                                    className="appointment-required-marker"
+                                >
+                                    {" *"}
+                                </span>
+                            ) : null}
                         </label>
                         <input
+                            aria-describedby={fieldError ? errorId : undefined}
+                            aria-invalid={Boolean(fieldError)}
                             autoComplete={getAutoComplete(fieldType)}
+                            className={fieldError ? "invalid" : undefined}
                             id={`appointment-field-${field.key}`}
                             inputMode={getInputMode(fieldType)}
                             onChange={(event) =>
@@ -415,6 +473,11 @@ export function AppointmentFillPage() {
                             type={getInputType(fieldType)}
                             value={values[field.key] ?? ""}
                         />
+                        {fieldError ? (
+                            <p className="appointment-field-error" id={errorId}>
+                                {fieldError}
+                            </p>
+                        ) : null}
                     </>
                 )}
             </div>

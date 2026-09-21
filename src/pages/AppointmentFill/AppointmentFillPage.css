@@ -46,6 +46,20 @@
     box-shadow: 0 0 0 3px rgb(159 196 238 / 28%);
 }
 
+.appointment-field input.invalid {
+    border-color: #c83c4f;
+    box-shadow: 0 0 0 3px rgb(200 60 79 / 12%);
+}
+
+.appointment-field input.invalid:focus {
+    border-color: #b3263a;
+    box-shadow: 0 0 0 3px rgb(200 60 79 / 20%);
+}
+
+.appointment-required-marker {
+    color: #9f1627;
+}
+
 .doctor-selection-field {
     display: grid;
     gap: 8px;

@@ -1,12 +1,14 @@
 .appointment-result-page {
-    width: min(100%, 1280px);
-    margin: 0 auto;
-    padding: 34px 56px;
+    display: flex;
+    width: 100%;
+    justify-content: center;
+    padding: 42px 40px 56px;
 }
 
 .appointment-result-card {
-    width: min(100%, 760px);
-    padding: 32px;
+    width: min(100%, 920px);
+    margin-inline: auto;
+    padding: 36px;
     border: 1px solid #e7edf6;
     border-radius: 16px;
     background: var(--surface);
@@ -85,13 +87,29 @@
 }
 
 .appointment-result-actions {
-    display: flex;
-    align-items: center;
+    display: grid;
+    gap: 16px;
+    width: 100%;
+    padding-top: 4px;
+}
+
+.appointment-result-document-actions {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
     gap: 12px;
+    max-width: 520px;
+}
+
+.appointment-result-navigation-actions {
+    display: flex;
     flex-wrap: wrap;
+    gap: 12px;
+    padding-top: 16px;
+    border-top: 1px solid var(--line);
 }
 
 .appointment-result-primary-button,
+.appointment-result-email-button,
 .appointment-result-secondary-button {
     min-width: 140px;
     height: 44px;
@@ -116,6 +134,18 @@
     transform: translateY(-1px);
 }
 
+.appointment-result-email-button {
+    border: 1px solid #9fc4ee;
+    color: var(--blue-900);
+    background: var(--blue-100);
+}
+
+.appointment-result-email-button:hover {
+    border-color: var(--blue-900);
+    background: #dceafa;
+    transform: translateY(-1px);
+}
+
 .appointment-result-secondary-button {
     border: 1px solid #d9e4f2;
     color: var(--blue-900);
@@ -129,6 +159,7 @@
 }
 
 .appointment-result-primary-button:disabled,
+.appointment-result-email-button:disabled,
 .appointment-result-secondary-button:disabled {
     cursor: not-allowed;
     opacity: 0.56;
@@ -277,9 +308,17 @@
         font-size: 15px;
     }
 
-    .appointment-result-actions {
-        align-items: stretch;
-        flex-direction: column-reverse;
+    .appointment-result-document-actions {
+        grid-template-columns: 1fr;
+        max-width: none;
+    }
+
+    .appointment-result-navigation-actions {
+        display: grid;
+        grid-template-columns: 1fr;
+    }
+
+    .appointment-result-actions button {
         width: 100%;
     }
 
