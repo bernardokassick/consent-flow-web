@@ -4,8 +4,9 @@ import { useNavigate } from "react-router-dom";
 import { useAppointment } from "../../hooks/useAppointment";
 import { appPaths } from "../../routes/appPaths";
 import {
-    downloadDocumentGeneration,
+    downloadGeneratedDocument,
     emailDocumentGeneration,
+    printGeneratedDocuments,
 } from "../../services/pdfService";
 import { getApiErrorCode, getApiErrorMessage, getApiErrorStatus } from "../../utils/apiError";
 import "./AppointmentResultPage.css";
@@ -26,10 +27,21 @@ export function AppointmentResultPage() {
     const [documentActionError, setDocumentActionError] = useState<string | null>(
         null,
     );
+    const [documentActionSuccess, setDocumentActionSuccess] = useState<
+        string | null
+    >(null);
+    const [isPrintModalOpen, setIsPrintModalOpen] = useState(false);
+    const [selectedPrintFilenames, setSelectedPrintFilenames] = useState<string[]>(
+        [],
+    );
+    const [printError, setPrintError] = useState<string | null>(null);
     const [isDownloading, setIsDownloading] = useState(false);
+    const [isPrinting, setIsPrinting] = useState(false);
     const [isSendingEmail, setIsSendingEmail] = useState(false);
     const recipientInputRef = useRef<HTMLInputElement>(null);
     const emailTriggerRef = useRef<HTMLButtonElement>(null);
+    const printCloseButtonRef = useRef<HTMLButtonElement>(null);
+    const printTriggerRef = useRef<HTMLButtonElement>(null);
 
     const trimmedRecipientEmail = recipientEmail.trim();
     const canSendEmail =
@@ -54,27 +66,100 @@ export function AppointmentResultPage() {
         };
     }, [isEmailModalOpen, isSendingEmail]);
 
-    async function downloadDocuments() {
-        if (!generatedDocuments) {
+    useEffect(() => {
+        if (!isPrintModalOpen) {
             return;
         }
 
+        function handleKeyDown(event: KeyboardEvent) {
+            if (event.key === "Escape" && !isPrinting) {
+                setIsPrintModalOpen(false);
+                setPrintError(null);
+                printTriggerRef.current?.focus();
+            }
+        }
+
+        document.addEventListener("keydown", handleKeyDown);
+        printCloseButtonRef.current?.focus();
+
+        return () => {
+            document.removeEventListener("keydown", handleKeyDown);
+        };
+    }, [isPrintModalOpen, isPrinting]);
+
+    async function downloadDocuments() {
+        if (!generatedDocuments || isDownloading) {
+            return;
+        }
+
+        setDocumentActionError(null);
+        setDocumentActionSuccess(null);
+        setIsDownloading(true);
+
         try {
-            setDocumentActionError(null);
-            setIsDownloading(true);
-
-            const generatedZip = await downloadDocumentGeneration(
-                generatedDocuments.generationId,
+            const results = await Promise.allSettled(
+                generatedDocuments.documents.map(async ({ filename }) => ({
+                    blob: await downloadGeneratedDocument(
+                        generatedDocuments.generationId,
+                        filename,
+                    ),
+                    filename,
+                })),
             );
-            const downloadUrl = URL.createObjectURL(generatedZip.blob);
-            const downloadLink = document.createElement("a");
 
-            downloadLink.href = downloadUrl;
-            downloadLink.download = generatedZip.filename || "documentos.zip";
-            document.body.append(downloadLink);
-            downloadLink.click();
-            downloadLink.remove();
-            URL.revokeObjectURL(downloadUrl);
+            const successfulDownloads = results.filter(
+                (result): result is PromiseFulfilledResult<{
+                    blob: Blob;
+                    filename: string;
+                }> => result.status === "fulfilled",
+            );
+            const failedDownloads = results.filter(
+                (result): result is PromiseRejectedResult =>
+                    result.status === "rejected",
+            );
+
+            successfulDownloads.forEach(({ value }) => {
+                triggerBlobDownload(value.blob, value.filename);
+            });
+
+            if (failedDownloads.length === 0) {
+                setDocumentActionSuccess(
+                    successfulDownloads.length === 1
+                        ? "1 documento baixado."
+                        : `${successfulDownloads.length} documentos baixados.`,
+                );
+                return;
+            }
+
+            if (successfulDownloads.length > 0) {
+                const hasExpiredFailure = failedDownloads.some(({ reason }) =>
+                    isDocumentGenerationExpired(reason),
+                );
+                const failedMessage =
+                    failedDownloads.length === 1
+                        ? "1 documento não pôde ser baixado."
+                        : `${failedDownloads.length} documentos não puderam ser baixados.`;
+
+                setDocumentActionError(
+                    `${successfulDownloads.length} de ${results.length} documentos baixados. ${failedMessage}${
+                        hasExpiredFailure
+                            ? " Os documentos desta sessão expiraram. Gere-os novamente para continuar."
+                            : ""
+                    }`,
+                );
+                return;
+            }
+
+            const expiredFailure = failedDownloads.find(({ reason }) =>
+                isDocumentGenerationExpired(reason),
+            );
+
+            setDocumentActionError(
+                getDocumentGenerationErrorMessage(
+                    expiredFailure?.reason ?? failedDownloads[0]?.reason,
+                    "Não foi possível baixar os documentos. Tente novamente.",
+                ),
+            );
         } catch (error) {
             console.error(error);
             setDocumentActionError(
@@ -88,6 +173,95 @@ export function AppointmentResultPage() {
         }
     }
 
+    function openPrintModal() {
+        if (!generatedDocuments) {
+            return;
+        }
+
+        setSelectedPrintFilenames(
+            generatedDocuments.documents.map(({ filename }) => filename),
+        );
+        setPrintError(null);
+        setDocumentActionError(null);
+        setDocumentActionSuccess(null);
+        setIsPrintModalOpen(true);
+    }
+
+    function closePrintModal() {
+        if (isPrinting) {
+            return;
+        }
+
+        setIsPrintModalOpen(false);
+        setPrintError(null);
+        printTriggerRef.current?.focus();
+    }
+
+    function togglePrintDocument(filename: string) {
+        setSelectedPrintFilenames((currentFilenames) =>
+            currentFilenames.includes(filename)
+                ? currentFilenames.filter(
+                      (currentFilename) => currentFilename !== filename,
+                  )
+                : [...currentFilenames, filename],
+        );
+    }
+
+    async function handlePrintDocuments() {
+        if (
+            !generatedDocuments ||
+            isPrinting ||
+            selectedPrintFilenames.length === 0
+        ) {
+            return;
+        }
+
+        const printWindow = window.open("", "_blank");
+
+        if (!printWindow) {
+            setPrintError(
+                "Não foi possível abrir a impressão. Permita pop-ups e tente novamente.",
+            );
+            return;
+        }
+
+        printWindow.document.title = "Preparando documentos para impressão";
+        printWindow.document.body.textContent =
+            "Preparando documentos para impressão...";
+
+        const filenames = generatedDocuments.documents
+            .map(({ filename }) => filename)
+            .filter((filename) => selectedPrintFilenames.includes(filename));
+
+        setPrintError(null);
+        setIsPrinting(true);
+
+        try {
+            const combinedPdf = await printGeneratedDocuments(
+                generatedDocuments.generationId,
+                filenames,
+            );
+
+            if (printWindow.closed) {
+                throw new Error("Print window was closed");
+            }
+
+            openPdfPrintDialog(printWindow, combinedPdf);
+            setIsPrintModalOpen(false);
+        } catch (error) {
+            console.error(error);
+            printWindow.close();
+            setPrintError(
+                getDocumentGenerationErrorMessage(
+                    error,
+                    "Não foi possível preparar os documentos para impressão. Tente novamente.",
+                ),
+            );
+        } finally {
+            setIsPrinting(false);
+        }
+    }
+
     function goToDashboard() {
         resetAppointment();
         navigate(appPaths.dashboard);
@@ -98,6 +272,7 @@ export function AppointmentResultPage() {
         setRecipientEmailError(null);
         setEmailSendError(null);
         setDocumentActionError(null);
+        setDocumentActionSuccess(null);
         setEmailSuccessMessage(null);
         setIsEmailModalOpen(true);
     }
@@ -213,6 +388,14 @@ export function AppointmentResultPage() {
                         </button>
                         <button
                             className="appointment-result-email-button"
+                            onClick={openPrintModal}
+                            ref={printTriggerRef}
+                            type="button"
+                        >
+                            Imprimir documentos
+                        </button>
+                        <button
+                            className="appointment-result-email-button"
                             onClick={openEmailModal}
                             ref={emailTriggerRef}
                             type="button"
@@ -244,12 +427,149 @@ export function AppointmentResultPage() {
                         {emailSuccessMessage}
                     </p>
                 ) : null}
+                {documentActionSuccess ? (
+                    <p className="appointment-result-success-message">
+                        {documentActionSuccess}
+                    </p>
+                ) : null}
                 {documentActionError ? (
                     <p className="appointment-result-error-message">
                         {documentActionError}
                     </p>
                 ) : null}
             </div>
+
+            {isPrintModalOpen ? (
+                <div className="email-modal-backdrop">
+                    <div
+                        aria-labelledby="print-modal-title"
+                        aria-modal="true"
+                        className="email-modal print-modal"
+                        role="dialog"
+                    >
+                        <div className="email-modal-header">
+                            <div>
+                                <h2 id="print-modal-title">
+                                    Imprimir documentos
+                                </h2>
+                                <p>
+                                    Selecione os documentos que deseja imprimir.
+                                </p>
+                            </div>
+                            <button
+                                aria-label="Fechar seleção de documentos"
+                                className="email-modal-close-button"
+                                disabled={isPrinting}
+                                onClick={closePrintModal}
+                                ref={printCloseButtonRef}
+                                type="button"
+                            >
+                                ×
+                            </button>
+                        </div>
+
+                        <div className="print-modal-content">
+                            <div className="print-modal-selection-header">
+                                <span>
+                                    {selectedPrintFilenames.length} de {generatedDocuments.documents.length} documentos selecionados
+                                </span>
+                                <div className="print-modal-selection-actions">
+                                    <button
+                                        disabled={
+                                            isPrinting ||
+                                            selectedPrintFilenames.length ===
+                                                generatedDocuments.documents.length
+                                        }
+                                        onClick={() =>
+                                            setSelectedPrintFilenames(
+                                                generatedDocuments.documents.map(
+                                                    ({ filename }) => filename,
+                                                ),
+                                            )
+                                        }
+                                        type="button"
+                                    >
+                                        Selecionar todos
+                                    </button>
+                                    <button
+                                        disabled={
+                                            isPrinting ||
+                                            selectedPrintFilenames.length === 0
+                                        }
+                                        onClick={() =>
+                                            setSelectedPrintFilenames([])
+                                        }
+                                        type="button"
+                                    >
+                                        Desmarcar todos
+                                    </button>
+                                </div>
+                            </div>
+
+                            <div className="print-document-list">
+                                {generatedDocuments.documents.map(
+                                    ({ filename }, index) => {
+                                        const inputId = `print-document-${index}`;
+
+                                        return (
+                                            <label
+                                                className="print-document-option"
+                                                htmlFor={inputId}
+                                                key={`${filename}-${index}`}
+                                            >
+                                                <input
+                                                    checked={selectedPrintFilenames.includes(
+                                                        filename,
+                                                    )}
+                                                    disabled={isPrinting}
+                                                    id={inputId}
+                                                    onChange={() =>
+                                                        togglePrintDocument(
+                                                            filename,
+                                                        )
+                                                    }
+                                                    type="checkbox"
+                                                />
+                                                <span>{filename}</span>
+                                            </label>
+                                        );
+                                    },
+                                )}
+                            </div>
+
+                            {printError ? (
+                                <p className="email-modal-error" role="alert">
+                                    {printError}
+                                </p>
+                            ) : null}
+
+                            <div className="email-modal-actions">
+                                <button
+                                    className="appointment-result-secondary-button"
+                                    disabled={isPrinting}
+                                    onClick={closePrintModal}
+                                    type="button"
+                                >
+                                    Cancelar
+                                </button>
+                                <button
+                                    className="appointment-result-primary-button"
+                                    disabled={
+                                        isPrinting ||
+                                        selectedPrintFilenames.length === 0
+                                    }
+                                    onClick={() => {
+                                        void handlePrintDocuments();
+                                    }}
+                                    type="button"
+                                >
+                                    {isPrinting ? "Preparando..." : "Imprimir"}
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            ) : null}
 
             {isEmailModalOpen ? (
                 <div className="email-modal-backdrop">
@@ -352,21 +672,71 @@ function isValidEmail(email: string) {
     return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email);
 }
 
-function getDocumentGenerationErrorMessage(
-    error: unknown,
-    fallbackMessage = "Os documentos desta sessão expiraram. Gere-os novamente para continuar.",
-) {
+function triggerBlobDownload(blob: Blob, filename: string) {
+    const downloadUrl = URL.createObjectURL(blob);
+    const downloadLink = document.createElement("a");
+
+    downloadLink.href = downloadUrl;
+    downloadLink.download = filename;
+    document.body.append(downloadLink);
+    downloadLink.click();
+    downloadLink.remove();
+    window.setTimeout(() => URL.revokeObjectURL(downloadUrl), 0);
+}
+
+function openPdfPrintDialog(printWindow: Window, pdf: Blob) {
+    const printUrl = URL.createObjectURL(pdf);
+    const iframe = printWindow.document.createElement("iframe");
+    let hasCleanedUp = false;
+
+    function cleanup() {
+        if (hasCleanedUp) {
+            return;
+        }
+
+        hasCleanedUp = true;
+        URL.revokeObjectURL(printUrl);
+    }
+
+    printWindow.document.title = "Imprimir documentos";
+    printWindow.document.body.replaceChildren();
+    printWindow.document.body.style.margin = "0";
+    iframe.title = "Documentos para impressão";
+    iframe.style.width = "100vw";
+    iframe.style.height = "100vh";
+    iframe.style.border = "0";
+    iframe.addEventListener("load", () => {
+        const pdfWindow = iframe.contentWindow;
+
+        pdfWindow?.addEventListener("afterprint", cleanup, { once: true });
+        pdfWindow?.focus();
+        pdfWindow?.print();
+    });
+    iframe.src = printUrl;
+    printWindow.document.body.append(iframe);
+    printWindow.addEventListener("beforeunload", cleanup, { once: true });
+    window.setTimeout(cleanup, 10 * 60 * 1000);
+}
+
+function isDocumentGenerationExpired(error: unknown) {
     const status = getApiErrorStatus(error);
     const code = getApiErrorCode(error);
 
-    if (
+    return (
         status === 404 ||
         status === 410 ||
         code === "DOCUMENT_GENERATION_EXPIRED" ||
         code === "DOCUMENT_GENERATION_NOT_FOUND" ||
         code === "GENERATION_EXPIRED" ||
         code === "GENERATION_NOT_FOUND"
-    ) {
+    );
+}
+
+function getDocumentGenerationErrorMessage(
+    error: unknown,
+    fallbackMessage = "Os documentos desta sessão expiraram. Gere-os novamente para continuar.",
+) {
+    if (isDocumentGenerationExpired(error)) {
         return "Os documentos desta sessão expiraram. Gere-os novamente para continuar.";
     }
 

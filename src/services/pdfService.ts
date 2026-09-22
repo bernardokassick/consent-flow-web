@@ -3,30 +3,6 @@ import type { GeneratedDocuments } from "../types/GeneratedDocuments";
 import type { PdfField } from "../types/PdfField";
 import type { PdfTemplate } from "../types/PdfTemplate";
 
-const defaultZipFilename = "documentos.zip";
-
-export function parseContentDispositionFilename(contentDisposition?: string) {
-    if (!contentDisposition) {
-        return defaultZipFilename;
-    }
-
-    const encodedFilenameMatch = contentDisposition.match(
-        /filename\*=UTF-8''([^;]+)/i,
-    );
-
-    if (encodedFilenameMatch?.[1]) {
-        try {
-            return decodeURIComponent(encodedFilenameMatch[1].trim());
-        } catch {
-            return encodedFilenameMatch[1].trim();
-        }
-    }
-
-    const filenameMatch = contentDisposition.match(/filename="?([^";]+)"?/i);
-
-    return filenameMatch?.[1]?.trim() || defaultZipFilename;
-}
-
 export async function getPdfTemplates(signal?: AbortSignal): Promise<PdfTemplate[]> {
     const response = await api.get<PdfTemplate[]>("/pdf/templates", {
         signal,
@@ -62,20 +38,31 @@ export async function createDocumentGeneration(
     return response.data;
 }
 
-export async function downloadDocumentGeneration(generationId: string) {
-    const response = await api.get(
-        `/document-generations/${encodeURIComponent(generationId)}/download`,
+export async function downloadGeneratedDocument(
+    generationId: string,
+    filename: string,
+) {
+    const response = await api.get<Blob>(
+        `/document-generations/${encodeURIComponent(generationId)}/documents/${encodeURIComponent(filename)}`,
         {
             responseType: "blob",
         },
     );
 
-    return {
-        blob: response.data,
-        filename: parseContentDispositionFilename(
-            response.headers["content-disposition"],
-        ),
-    };
+    return response.data;
+}
+
+export async function printGeneratedDocuments(
+    generationId: string,
+    filenames: string[],
+) {
+    const response = await api.post<Blob>(
+        `/document-generations/${encodeURIComponent(generationId)}/print`,
+        { filenames },
+        { responseType: "blob" },
+    );
+
+    return response.data;
 }
 
 export async function emailDocumentGeneration(generationId: string, to: string) {

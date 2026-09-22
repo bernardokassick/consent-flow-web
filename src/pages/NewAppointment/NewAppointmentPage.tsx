@@ -219,7 +219,9 @@ export function NewAppointmentPage() {
                                 : "Tentar novamente"
                         }
                         message={templatesError}
-                        onAction={loadTemplates}
+                        onAction={() => {
+                            void loadTemplates();
+                        }}
                     />
                 ) : null}
 

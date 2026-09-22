@@ -11,10 +11,12 @@ import { LoginPage } from "../pages/Login/LoginPage";
 import { NewAppointmentPage } from "../pages/NewAppointment/NewAppointmentPage";
 import { appPaths } from "./appPaths";
 import { ProtectedRoute } from "./ProtectedRoute";
+import { ScrollToTop } from "./ScrollToTop";
 
 export function AppRoutes() {
     return (
         <BrowserRouter>
+            <ScrollToTop />
             <Routes>
                 <Route path={`${appPaths.login}/*`} element={<LoginPage />} />
                 <Route
