@@ -4,7 +4,7 @@ import { useNavigate } from "react-router-dom";
 import { useAppointment } from "../../hooks/useAppointment";
 import { appPaths } from "../../routes/appPaths";
 import {
-    downloadGeneratedDocument,
+    downloadDocumentGeneration,
     emailDocumentGeneration,
     printGeneratedDocuments,
 } from "../../services/pdfService";
@@ -27,9 +27,6 @@ export function AppointmentResultPage() {
     const [documentActionError, setDocumentActionError] = useState<string | null>(
         null,
     );
-    const [documentActionSuccess, setDocumentActionSuccess] = useState<
-        string | null
-    >(null);
     const [isPrintModalOpen, setIsPrintModalOpen] = useState(false);
     const [selectedPrintFilenames, setSelectedPrintFilenames] = useState<string[]>(
         [],
@@ -93,73 +90,21 @@ export function AppointmentResultPage() {
         }
 
         setDocumentActionError(null);
-        setDocumentActionSuccess(null);
         setIsDownloading(true);
 
         try {
-            const results = await Promise.allSettled(
-                generatedDocuments.documents.map(async ({ filename }) => ({
-                    blob: await downloadGeneratedDocument(
-                        generatedDocuments.generationId,
-                        filename,
-                    ),
-                    filename,
-                })),
+            const generatedZip = await downloadDocumentGeneration(
+                generatedDocuments.generationId,
             );
+            const downloadUrl = URL.createObjectURL(generatedZip.blob);
+            const downloadLink = document.createElement("a");
 
-            const successfulDownloads = results.filter(
-                (result): result is PromiseFulfilledResult<{
-                    blob: Blob;
-                    filename: string;
-                }> => result.status === "fulfilled",
-            );
-            const failedDownloads = results.filter(
-                (result): result is PromiseRejectedResult =>
-                    result.status === "rejected",
-            );
-
-            successfulDownloads.forEach(({ value }) => {
-                triggerBlobDownload(value.blob, value.filename);
-            });
-
-            if (failedDownloads.length === 0) {
-                setDocumentActionSuccess(
-                    successfulDownloads.length === 1
-                        ? "1 documento baixado."
-                        : `${successfulDownloads.length} documentos baixados.`,
-                );
-                return;
-            }
-
-            if (successfulDownloads.length > 0) {
-                const hasExpiredFailure = failedDownloads.some(({ reason }) =>
-                    isDocumentGenerationExpired(reason),
-                );
-                const failedMessage =
-                    failedDownloads.length === 1
-                        ? "1 documento não pôde ser baixado."
-                        : `${failedDownloads.length} documentos não puderam ser baixados.`;
-
-                setDocumentActionError(
-                    `${successfulDownloads.length} de ${results.length} documentos baixados. ${failedMessage}${
-                        hasExpiredFailure
-                            ? " Os documentos desta sessão expiraram. Gere-os novamente para continuar."
-                            : ""
-                    }`,
-                );
-                return;
-            }
-
-            const expiredFailure = failedDownloads.find(({ reason }) =>
-                isDocumentGenerationExpired(reason),
-            );
-
-            setDocumentActionError(
-                getDocumentGenerationErrorMessage(
-                    expiredFailure?.reason ?? failedDownloads[0]?.reason,
-                    "Não foi possível baixar os documentos. Tente novamente.",
-                ),
-            );
+            downloadLink.href = downloadUrl;
+            downloadLink.download = generatedZip.filename;
+            document.body.append(downloadLink);
+            downloadLink.click();
+            downloadLink.remove();
+            window.setTimeout(() => URL.revokeObjectURL(downloadUrl), 0);
         } catch (error) {
             console.error(error);
             setDocumentActionError(
@@ -183,7 +128,6 @@ export function AppointmentResultPage() {
         );
         setPrintError(null);
         setDocumentActionError(null);
-        setDocumentActionSuccess(null);
         setIsPrintModalOpen(true);
     }
 
@@ -272,7 +216,6 @@ export function AppointmentResultPage() {
         setRecipientEmailError(null);
         setEmailSendError(null);
         setDocumentActionError(null);
-        setDocumentActionSuccess(null);
         setEmailSuccessMessage(null);
         setIsEmailModalOpen(true);
     }
@@ -425,11 +368,6 @@ export function AppointmentResultPage() {
                 {emailSuccessMessage ? (
                     <p className="appointment-result-success-message">
                         {emailSuccessMessage}
-                    </p>
-                ) : null}
-                {documentActionSuccess ? (
-                    <p className="appointment-result-success-message">
-                        {documentActionSuccess}
                     </p>
                 ) : null}
                 {documentActionError ? (
@@ -670,18 +608,6 @@ export function AppointmentResultPage() {
 
 function isValidEmail(email: string) {
     return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email);
-}
-
-function triggerBlobDownload(blob: Blob, filename: string) {
-    const downloadUrl = URL.createObjectURL(blob);
-    const downloadLink = document.createElement("a");
-
-    downloadLink.href = downloadUrl;
-    downloadLink.download = filename;
-    document.body.append(downloadLink);
-    downloadLink.click();
-    downloadLink.remove();
-    window.setTimeout(() => URL.revokeObjectURL(downloadUrl), 0);
 }
 
 function openPdfPrintDialog(printWindow: Window, pdf: Blob) {
