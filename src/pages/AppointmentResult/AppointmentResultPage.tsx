@@ -5,6 +5,7 @@ import { useAppointment } from "../../hooks/useAppointment";
 import { appPaths } from "../../routes/appPaths";
 import {
     downloadDocumentGeneration,
+    downloadGeneratedDocument,
     emailDocumentGeneration,
     printGeneratedDocuments,
 } from "../../services/pdfService";
@@ -27,12 +28,16 @@ export function AppointmentResultPage() {
     const [documentActionError, setDocumentActionError] = useState<string | null>(
         null,
     );
+    const [documentActionMessage, setDocumentActionMessage] = useState<
+        string | null
+    >(null);
     const [isPrintModalOpen, setIsPrintModalOpen] = useState(false);
     const [selectedPrintFilenames, setSelectedPrintFilenames] = useState<string[]>(
         [],
     );
     const [printError, setPrintError] = useState<string | null>(null);
-    const [isDownloading, setIsDownloading] = useState(false);
+    const [isDownloadingFiles, setIsDownloadingFiles] = useState(false);
+    const [isDownloadingZip, setIsDownloadingZip] = useState(false);
     const [isPrinting, setIsPrinting] = useState(false);
     const [isSendingEmail, setIsSendingEmail] = useState(false);
     const recipientInputRef = useRef<HTMLInputElement>(null);
@@ -85,12 +90,13 @@ export function AppointmentResultPage() {
     }, [isPrintModalOpen, isPrinting]);
 
     async function downloadDocuments() {
-        if (!generatedDocuments || isDownloading) {
+        if (!generatedDocuments || isDownloadingZip || isDownloadingFiles) {
             return;
         }
 
         setDocumentActionError(null);
-        setIsDownloading(true);
+        setDocumentActionMessage(null);
+        setIsDownloadingZip(true);
 
         try {
             const generatedZip = await downloadDocumentGeneration(
@@ -114,7 +120,83 @@ export function AppointmentResultPage() {
                 ),
             );
         } finally {
-            setIsDownloading(false);
+            setIsDownloadingZip(false);
+        }
+    }
+
+    async function downloadIndividualDocuments() {
+        if (!generatedDocuments || isDownloadingFiles || isDownloadingZip) {
+            return;
+        }
+
+        setDocumentActionError(null);
+        setDocumentActionMessage(null);
+        setIsDownloadingFiles(true);
+
+        try {
+            const directoryHandle = await selectDownloadDirectory();
+            const results = await Promise.allSettled(
+                generatedDocuments.documents.map(async ({ filename }) => {
+                    const blob = await downloadGeneratedDocument(
+                        generatedDocuments.generationId,
+                        filename,
+                    );
+
+                    if (directoryHandle) {
+                        await saveBlobToDirectory(
+                            directoryHandle,
+                            filename,
+                            blob,
+                        );
+                    } else {
+                        triggerBlobDownload(blob, filename);
+                    }
+                }),
+            );
+            const failedDownloads = results.filter(
+                (result): result is PromiseRejectedResult =>
+                    result.status === "rejected",
+            );
+            const successfulCount = results.length - failedDownloads.length;
+
+            if (failedDownloads.length === 0) {
+                setDocumentActionMessage(
+                    directoryHandle
+                        ? `${successfulCount} arquivo(s) salvo(s).`
+                        : "Downloads iniciados. Se o navegador bloquear downloads múltiplos, autorize-os ou use a opção .ZIP.",
+                );
+                return;
+            }
+
+            if (successfulCount > 0) {
+                setDocumentActionError(
+                    `${successfulCount} de ${results.length} arquivos foram preparados. ${failedDownloads.length} arquivo(s) não puderam ser baixado(s).`,
+                );
+                return;
+            }
+
+            const expiredFailure = failedDownloads.find(({ reason }) =>
+                isDocumentGenerationExpired(reason),
+            );
+
+            setDocumentActionError(
+                getDocumentGenerationErrorMessage(
+                    expiredFailure?.reason ?? failedDownloads[0]?.reason,
+                    "Não foi possível baixar os arquivos. Tente novamente ou use a opção .ZIP.",
+                ),
+            );
+        } catch (error) {
+            if (!isFilePickerCanceled(error)) {
+                console.error(error);
+                setDocumentActionError(
+                    getDocumentGenerationErrorMessage(
+                        error,
+                        "Não foi possível baixar os arquivos. Tente novamente ou use a opção .ZIP.",
+                    ),
+                );
+            }
+        } finally {
+            setIsDownloadingFiles(false);
         }
     }
 
@@ -128,6 +210,7 @@ export function AppointmentResultPage() {
         );
         setPrintError(null);
         setDocumentActionError(null);
+        setDocumentActionMessage(null);
         setIsPrintModalOpen(true);
     }
 
@@ -216,6 +299,7 @@ export function AppointmentResultPage() {
         setRecipientEmailError(null);
         setEmailSendError(null);
         setDocumentActionError(null);
+        setDocumentActionMessage(null);
         setEmailSuccessMessage(null);
         setIsEmailModalOpen(true);
     }
@@ -321,13 +405,25 @@ export function AppointmentResultPage() {
                     <div className="appointment-result-document-actions">
                         <button
                             className="appointment-result-primary-button"
-                            disabled={isDownloading}
+                            disabled={isDownloadingFiles || isDownloadingZip}
+                            onClick={() => {
+                                void downloadIndividualDocuments();
+                            }}
+                            type="button"
+                        >
+                            {isDownloadingFiles
+                                ? "Baixando..."
+                                : "Baixar arquivos"}
+                        </button>
+                        <button
+                            className="appointment-result-email-button"
+                            disabled={isDownloadingFiles || isDownloadingZip}
                             onClick={() => {
                                 void downloadDocuments();
                             }}
                             type="button"
                         >
-                            {isDownloading ? "Baixando..." : "Baixar documentos"}
+                            {isDownloadingZip ? "Baixando..." : "Baixar .ZIP"}
                         </button>
                         <button
                             className="appointment-result-email-button"
@@ -368,6 +464,11 @@ export function AppointmentResultPage() {
                 {emailSuccessMessage ? (
                     <p className="appointment-result-success-message">
                         {emailSuccessMessage}
+                    </p>
+                ) : null}
+                {documentActionMessage ? (
+                    <p className="appointment-result-success-message">
+                        {documentActionMessage}
                     </p>
                 ) : null}
                 {documentActionError ? (
@@ -608,6 +709,60 @@ export function AppointmentResultPage() {
 
 function isValidEmail(email: string) {
     return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email);
+}
+
+interface WritableFileHandle {
+    createWritable: () => Promise<{
+        close: () => Promise<void>;
+        write: (data: Blob) => Promise<void>;
+    }>;
+}
+
+interface WritableDirectoryHandle {
+    getFileHandle: (
+        filename: string,
+        options: { create: boolean },
+    ) => Promise<WritableFileHandle>;
+}
+
+async function selectDownloadDirectory() {
+    const directoryPicker = (
+        window as Window & {
+            showDirectoryPicker?: () => Promise<WritableDirectoryHandle>;
+        }
+    ).showDirectoryPicker;
+
+    return directoryPicker ? directoryPicker.call(window) : null;
+}
+
+async function saveBlobToDirectory(
+    directory: WritableDirectoryHandle,
+    filename: string,
+    blob: Blob,
+) {
+    const fileHandle = await directory.getFileHandle(filename, {
+        create: true,
+    });
+    const writable = await fileHandle.createWritable();
+
+    await writable.write(blob);
+    await writable.close();
+}
+
+function triggerBlobDownload(blob: Blob, filename: string) {
+    const downloadUrl = URL.createObjectURL(blob);
+    const downloadLink = document.createElement("a");
+
+    downloadLink.href = downloadUrl;
+    downloadLink.download = filename;
+    document.body.append(downloadLink);
+    downloadLink.click();
+    downloadLink.remove();
+    window.setTimeout(() => URL.revokeObjectURL(downloadUrl), 0);
+}
+
+function isFilePickerCanceled(error: unknown) {
+    return error instanceof DOMException && error.name === "AbortError";
 }
 
 function openPdfPrintDialog(printWindow: Window, pdf: Blob) {

@@ -78,6 +78,20 @@ export async function downloadDocumentGeneration(generationId: string) {
     };
 }
 
+export async function downloadGeneratedDocument(
+    generationId: string,
+    filename: string,
+) {
+    const response = await api.get<Blob>(
+        `/document-generations/${encodeURIComponent(generationId)}/documents/${encodeURIComponent(filename)}`,
+        {
+            responseType: "blob",
+        },
+    );
+
+    return response.data;
+}
+
 export async function printGeneratedDocuments(
     generationId: string,
     filenames: string[],
