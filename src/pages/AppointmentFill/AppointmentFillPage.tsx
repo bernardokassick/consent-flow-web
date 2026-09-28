@@ -49,7 +49,10 @@ const hiddenDoctorInputKeys = new Set([
 ]);
 const cpfFieldKeys = new Set(["patient_cpf", "guardian_cpf"]);
 const dateFieldKeys = new Set(["patient_birth_date", "signature_date"]);
-const phoneFieldKeys = new Set(["patient_phone"]);
+const phoneFieldKeys = new Set([
+    "patient_phone",
+    "patient_emergency_contact",
+]);
 const emailFieldKeys = new Set(["patient_email"]);
 const requiredPatientFieldKeys = new Set(["patient_name", "patient_cpf"]);
 

@@ -89,45 +89,6 @@
     line-height: 1.45;
 }
 
-.witness-fields {
-    display: grid;
-    grid-template-columns: repeat(2, minmax(0, 1fr));
-    gap: 18px;
-    margin-bottom: 24px;
-}
-
-.witness-field {
-    display: grid;
-    gap: 8px;
-}
-
-.witness-field span {
-    color: #344054;
-    font-size: 13px;
-    font-weight: 750;
-}
-
-.witness-field input {
-    width: 100%;
-    min-height: 46px;
-    padding: 0 14px;
-    border: 1px solid #d9e4f2;
-    border-radius: 10px;
-    color: var(--ink);
-    background: #ffffff;
-    font: inherit;
-    font-size: 15px;
-    outline: none;
-    transition:
-        border-color 160ms ease,
-        box-shadow 160ms ease;
-}
-
-.witness-field input:focus {
-    border-color: #8bb8ea;
-    box-shadow: 0 0 0 3px rgb(10 92 168 / 12%);
-}
-
 .signature-confirmation input {
     width: 20px;
     height: 20px;
@@ -234,10 +195,6 @@
     }
 
     .signature-summary {
-        grid-template-columns: 1fr;
-    }
-
-    .witness-fields {
         grid-template-columns: 1fr;
     }
 

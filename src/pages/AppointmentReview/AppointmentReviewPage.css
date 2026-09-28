@@ -1,5 +1,5 @@
 .appointment-review-page {
-    width: min(100%, 1280px);
+    width: min(100%, 1440px);
     margin: 0 auto;
     padding: 34px 56px;
 }
@@ -36,7 +36,7 @@
 
 .appointment-review-layout {
     display: grid;
-    grid-template-columns: minmax(260px, 340px) 1fr;
+    grid-template-columns: minmax(320px, 380px) minmax(0, 1fr);
     gap: 28px;
     align-items: start;
 }
@@ -44,6 +44,7 @@
 .review-document-list-card,
 .review-preview-card,
 .appointment-review-empty-card {
+    min-width: 0;
     border: 1px solid #e7edf6;
     border-radius: 16px;
     background: var(--surface);
@@ -89,12 +90,16 @@
 
 .review-document-list {
     display: grid;
+    width: 100%;
+    min-width: 0;
     gap: 12px;
 }
 
 .review-document-item {
     display: flex;
     width: 100%;
+    min-width: 0;
+    max-width: 100%;
     align-items: flex-start;
     gap: 14px;
     padding: 16px;
@@ -136,7 +141,19 @@
 
 .review-document-item span:last-child {
     display: grid;
+    min-width: 0;
+    flex: 1 1 auto;
     gap: 5px;
+    overflow: hidden;
+}
+
+.review-document-item strong,
+.review-document-item small {
+    display: block;
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
 }
 
 .review-document-item strong {

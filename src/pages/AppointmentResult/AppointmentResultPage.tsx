@@ -28,7 +28,14 @@ export function AppointmentResultPage() {
     const [documentActionError, setDocumentActionError] = useState<string | null>(
         null,
     );
-    const [documentActionMessage, setDocumentActionMessage] = useState<
+    const [isDownloadModalOpen, setIsDownloadModalOpen] = useState(false);
+    const [downloadingFilename, setDownloadingFilename] = useState<string | null>(
+        null,
+    );
+    const [downloadedFilenames, setDownloadedFilenames] = useState<Set<string>>(
+        () => new Set(),
+    );
+    const [individualDownloadError, setIndividualDownloadError] = useState<
         string | null
     >(null);
     const [isPrintModalOpen, setIsPrintModalOpen] = useState(false);
@@ -36,11 +43,12 @@ export function AppointmentResultPage() {
         [],
     );
     const [printError, setPrintError] = useState<string | null>(null);
-    const [isDownloadingFiles, setIsDownloadingFiles] = useState(false);
     const [isDownloadingZip, setIsDownloadingZip] = useState(false);
     const [isPrinting, setIsPrinting] = useState(false);
     const [isSendingEmail, setIsSendingEmail] = useState(false);
     const recipientInputRef = useRef<HTMLInputElement>(null);
+    const downloadCloseButtonRef = useRef<HTMLButtonElement>(null);
+    const downloadTriggerRef = useRef<HTMLButtonElement>(null);
     const emailTriggerRef = useRef<HTMLButtonElement>(null);
     const printCloseButtonRef = useRef<HTMLButtonElement>(null);
     const printTriggerRef = useRef<HTMLButtonElement>(null);
@@ -69,6 +77,27 @@ export function AppointmentResultPage() {
     }, [isEmailModalOpen, isSendingEmail]);
 
     useEffect(() => {
+        if (!isDownloadModalOpen) {
+            return;
+        }
+
+        function handleKeyDown(event: KeyboardEvent) {
+            if (event.key === "Escape" && !downloadingFilename) {
+                setIsDownloadModalOpen(false);
+                setIndividualDownloadError(null);
+                downloadTriggerRef.current?.focus();
+            }
+        }
+
+        document.addEventListener("keydown", handleKeyDown);
+        downloadCloseButtonRef.current?.focus();
+
+        return () => {
+            document.removeEventListener("keydown", handleKeyDown);
+        };
+    }, [downloadingFilename, isDownloadModalOpen]);
+
+    useEffect(() => {
         if (!isPrintModalOpen) {
             return;
         }
@@ -90,12 +119,11 @@ export function AppointmentResultPage() {
     }, [isPrintModalOpen, isPrinting]);
 
     async function downloadDocuments() {
-        if (!generatedDocuments || isDownloadingZip || isDownloadingFiles) {
+        if (!generatedDocuments || isDownloadingZip) {
             return;
         }
 
         setDocumentActionError(null);
-        setDocumentActionMessage(null);
         setIsDownloadingZip(true);
 
         try {
@@ -124,79 +152,53 @@ export function AppointmentResultPage() {
         }
     }
 
-    async function downloadIndividualDocuments() {
-        if (!generatedDocuments || isDownloadingFiles || isDownloadingZip) {
+    function openDownloadModal() {
+        setIndividualDownloadError(null);
+        setIsDownloadModalOpen(true);
+    }
+
+    function closeDownloadModal() {
+        if (downloadingFilename) {
             return;
         }
 
-        setDocumentActionError(null);
-        setDocumentActionMessage(null);
-        setIsDownloadingFiles(true);
+        setIsDownloadModalOpen(false);
+        setIndividualDownloadError(null);
+        downloadTriggerRef.current?.focus();
+    }
+
+    async function downloadIndividualDocument(filename: string) {
+        if (!generatedDocuments || downloadingFilename) {
+            return;
+        }
+
+        setIndividualDownloadError(null);
+        setDownloadingFilename(filename);
 
         try {
-            const directoryHandle = await selectDownloadDirectory();
-            const results = await Promise.allSettled(
-                generatedDocuments.documents.map(async ({ filename }) => {
-                    const blob = await downloadGeneratedDocument(
-                        generatedDocuments.generationId,
-                        filename,
-                    );
-
-                    if (directoryHandle) {
-                        await saveBlobToDirectory(
-                            directoryHandle,
-                            filename,
-                            blob,
-                        );
-                    } else {
-                        triggerBlobDownload(blob, filename);
-                    }
-                }),
-            );
-            const failedDownloads = results.filter(
-                (result): result is PromiseRejectedResult =>
-                    result.status === "rejected",
-            );
-            const successfulCount = results.length - failedDownloads.length;
-
-            if (failedDownloads.length === 0) {
-                setDocumentActionMessage(
-                    directoryHandle
-                        ? `${successfulCount} arquivo(s) salvo(s).`
-                        : "Downloads iniciados. Se o navegador bloquear downloads múltiplos, autorize-os ou use a opção .ZIP.",
-                );
-                return;
-            }
-
-            if (successfulCount > 0) {
-                setDocumentActionError(
-                    `${successfulCount} de ${results.length} arquivos foram preparados. ${failedDownloads.length} arquivo(s) não puderam ser baixado(s).`,
-                );
-                return;
-            }
-
-            const expiredFailure = failedDownloads.find(({ reason }) =>
-                isDocumentGenerationExpired(reason),
+            const blob = await downloadGeneratedDocument(
+                generatedDocuments.generationId,
+                filename,
             );
 
-            setDocumentActionError(
+            triggerBlobDownload(blob, filename);
+            setDownloadedFilenames((currentFilenames) => {
+                const nextFilenames = new Set(currentFilenames);
+
+                nextFilenames.add(filename);
+
+                return nextFilenames;
+            });
+        } catch (error) {
+            console.error(error);
+            setIndividualDownloadError(
                 getDocumentGenerationErrorMessage(
-                    expiredFailure?.reason ?? failedDownloads[0]?.reason,
-                    "Não foi possível baixar os arquivos. Tente novamente ou use a opção .ZIP.",
+                    error,
+                    "Não foi possível baixar este documento. Tente novamente.",
                 ),
             );
-        } catch (error) {
-            if (!isFilePickerCanceled(error)) {
-                console.error(error);
-                setDocumentActionError(
-                    getDocumentGenerationErrorMessage(
-                        error,
-                        "Não foi possível baixar os arquivos. Tente novamente ou use a opção .ZIP.",
-                    ),
-                );
-            }
         } finally {
-            setIsDownloadingFiles(false);
+            setDownloadingFilename(null);
         }
     }
 
@@ -210,7 +212,6 @@ export function AppointmentResultPage() {
         );
         setPrintError(null);
         setDocumentActionError(null);
-        setDocumentActionMessage(null);
         setIsPrintModalOpen(true);
     }
 
@@ -299,7 +300,6 @@ export function AppointmentResultPage() {
         setRecipientEmailError(null);
         setEmailSendError(null);
         setDocumentActionError(null);
-        setDocumentActionMessage(null);
         setEmailSuccessMessage(null);
         setIsEmailModalOpen(true);
     }
@@ -405,25 +405,22 @@ export function AppointmentResultPage() {
                     <div className="appointment-result-document-actions">
                         <button
                             className="appointment-result-primary-button"
-                            disabled={isDownloadingFiles || isDownloadingZip}
-                            onClick={() => {
-                                void downloadIndividualDocuments();
-                            }}
+                            disabled={isDownloadingZip}
+                            onClick={openDownloadModal}
+                            ref={downloadTriggerRef}
                             type="button"
                         >
-                            {isDownloadingFiles
-                                ? "Baixando..."
-                                : "Baixar arquivos"}
+                            Baixar documentos
                         </button>
                         <button
                             className="appointment-result-email-button"
-                            disabled={isDownloadingFiles || isDownloadingZip}
+                            disabled={isDownloadingZip}
                             onClick={() => {
                                 void downloadDocuments();
                             }}
                             type="button"
                         >
-                            {isDownloadingZip ? "Baixando..." : "Baixar .ZIP"}
+                            {isDownloadingZip ? "Baixando..." : "Baixar ZIP"}
                         </button>
                         <button
                             className="appointment-result-email-button"
@@ -466,17 +463,108 @@ export function AppointmentResultPage() {
                         {emailSuccessMessage}
                     </p>
                 ) : null}
-                {documentActionMessage ? (
-                    <p className="appointment-result-success-message">
-                        {documentActionMessage}
-                    </p>
-                ) : null}
                 {documentActionError ? (
                     <p className="appointment-result-error-message">
                         {documentActionError}
                     </p>
                 ) : null}
             </div>
+
+            {isDownloadModalOpen ? (
+                <div className="email-modal-backdrop">
+                    <div
+                        aria-labelledby="download-modal-title"
+                        aria-modal="true"
+                        className="email-modal download-modal"
+                        role="dialog"
+                    >
+                        <div className="email-modal-header">
+                            <div>
+                                <h2 id="download-modal-title">
+                                    Baixar documentos
+                                </h2>
+                                <p>
+                                    Baixe individualmente os documentos deste atendimento.
+                                </p>
+                            </div>
+                            <button
+                                aria-label="Fechar downloads de documentos"
+                                className="email-modal-close-button"
+                                disabled={Boolean(downloadingFilename)}
+                                onClick={closeDownloadModal}
+                                ref={downloadCloseButtonRef}
+                                type="button"
+                            >
+                                ×
+                            </button>
+                        </div>
+
+                        <div className="download-modal-content">
+                            <div className="download-document-list">
+                                {generatedDocuments.documents.map(
+                                    ({ filename }, index) => (
+                                        <div
+                                            className="download-document-item"
+                                            key={`${filename}-${index}`}
+                                        >
+                                            <div>
+                                                <strong title={getDocumentDisplayName(filename)}>
+                                                    {getDocumentDisplayName(filename)}
+                                                </strong>
+                                                <small title={filename}>{filename}</small>
+                                            </div>
+                                            <button
+                                                aria-label={
+                                                    downloadedFilenames.has(
+                                                        filename,
+                                                    )
+                                                        ? `Baixar novamente ${getDocumentDisplayName(filename)}`
+                                                        : `Baixar ${getDocumentDisplayName(filename)}`
+                                                }
+                                                className={`download-document-button ${
+                                                    downloadedFilenames.has(
+                                                        filename,
+                                                    )
+                                                        ? "appointment-result-secondary-button"
+                                                        : "appointment-result-primary-button"
+                                                }`}
+                                                disabled={Boolean(downloadingFilename)}
+                                                onClick={() => {
+                                                    void downloadIndividualDocument(
+                                                        filename,
+                                                    );
+                                                }}
+                                                type="button"
+                                            >
+                                                {downloadingFilename === filename ? (
+                                                    "Baixando..."
+                                                ) : (
+                                                    <>
+                                                        {downloadedFilenames.has(
+                                                            filename,
+                                                        ) ? (
+                                                            <span aria-hidden="true">
+                                                                ✓
+                                                            </span>
+                                                        ) : null}
+                                                        Baixar
+                                                    </>
+                                                )}
+                                            </button>
+                                        </div>
+                                    ),
+                                )}
+                            </div>
+
+                            {individualDownloadError ? (
+                                <p className="email-modal-error" role="alert">
+                                    {individualDownloadError}
+                                </p>
+                            ) : null}
+                        </div>
+                    </div>
+                </div>
+            ) : null}
 
             {isPrintModalOpen ? (
                 <div className="email-modal-backdrop">
@@ -711,42 +799,14 @@ function isValidEmail(email: string) {
     return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email);
 }
 
-interface WritableFileHandle {
-    createWritable: () => Promise<{
-        close: () => Promise<void>;
-        write: (data: Blob) => Promise<void>;
-    }>;
-}
+function getDocumentDisplayName(filename: string) {
+    const displayName = filename
+        .replace(/\.pdf$/i, "")
+        .replace(/[_-]+/g, " ")
+        .replace(/\s+/g, " ")
+        .trim();
 
-interface WritableDirectoryHandle {
-    getFileHandle: (
-        filename: string,
-        options: { create: boolean },
-    ) => Promise<WritableFileHandle>;
-}
-
-async function selectDownloadDirectory() {
-    const directoryPicker = (
-        window as Window & {
-            showDirectoryPicker?: () => Promise<WritableDirectoryHandle>;
-        }
-    ).showDirectoryPicker;
-
-    return directoryPicker ? directoryPicker.call(window) : null;
-}
-
-async function saveBlobToDirectory(
-    directory: WritableDirectoryHandle,
-    filename: string,
-    blob: Blob,
-) {
-    const fileHandle = await directory.getFileHandle(filename, {
-        create: true,
-    });
-    const writable = await fileHandle.createWritable();
-
-    await writable.write(blob);
-    await writable.close();
+    return displayName || filename;
 }
 
 function triggerBlobDownload(blob: Blob, filename: string) {
@@ -759,10 +819,6 @@ function triggerBlobDownload(blob: Blob, filename: string) {
     downloadLink.click();
     downloadLink.remove();
     window.setTimeout(() => URL.revokeObjectURL(downloadUrl), 0);
-}
-
-function isFilePickerCanceled(error: unknown) {
-    return error instanceof DOMException && error.name === "AbortError";
 }
 
 function openPdfPrintDialog(printWindow: Window, pdf: Blob) {

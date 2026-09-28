@@ -8,7 +8,6 @@ import { useAppointment } from "../../hooks/useAppointment";
 import { appPaths } from "../../routes/appPaths";
 import { createDocumentGeneration } from "../../services/pdfService";
 import { getApiErrorMessage } from "../../utils/apiError";
-import { formatCpf } from "../../utils/masks";
 import { filterSignaturesForFields } from "../../utils/signatures";
 import "./AppointmentSignaturePage.css";
 
@@ -28,22 +27,13 @@ type SignatureFlowStep = {
     signatureKey: string;
     signatureLabel: string;
     title: string;
-    witnessNumber?: 1 | 2;
 };
 
 const patientSignatureKey = "patient_signature";
 const guardianSignatureKey = "guardian_signature";
 
-function getWitnessFieldKeys(witnessNumber: 1 | 2) {
-    return {
-        cpf: `witness_${witnessNumber}_cpf`,
-        name: `witness_${witnessNumber}_name`,
-        signature: `witness_${witnessNumber}_signature`,
-    };
-}
-
-function hasRequiredValue(value?: string) {
-    return Boolean(value?.trim());
+function getWitnessSignatureKey(witnessNumber: 1 | 2) {
+    return `witness_${witnessNumber}_signature`;
 }
 
 export function AppointmentSignaturePage() {
@@ -54,7 +44,6 @@ export function AppointmentSignaturePage() {
         selectedDoctorId,
         selectedTemplates,
         setGeneratedDocuments,
-        setValues,
         signatures,
         values,
     } = useAppointment();
@@ -95,30 +84,28 @@ export function AppointmentSignaturePage() {
             });
         }
 
-        const witness1FieldKeys = getWitnessFieldKeys(1);
-        const witness2FieldKeys = getWitnessFieldKeys(2);
+        const witness1SignatureKey = getWitnessSignatureKey(1);
+        const witness2SignatureKey = getWitnessSignatureKey(2);
 
-        if (fieldKeys.has(witness1FieldKeys.signature)) {
+        if (fieldKeys.has(witness1SignatureKey)) {
             steps.push({
                 description:
-                    "Preencha os dados exigidos e colete a assinatura da testemunha.",
+                    "Colete a assinatura da testemunha no campo abaixo.",
                 id: signatureStepIds.witness1,
-                signatureKey: witness1FieldKeys.signature,
+                signatureKey: witness1SignatureKey,
                 signatureLabel: "Assinatura",
                 title: "Testemunha 1",
-                witnessNumber: 1,
             });
         }
 
-        if (fieldKeys.has(witness2FieldKeys.signature)) {
+        if (fieldKeys.has(witness2SignatureKey)) {
             steps.push({
                 description:
-                    "Preencha os dados exigidos e colete a assinatura da testemunha.",
+                    "Colete a assinatura da testemunha no campo abaixo.",
                 id: signatureStepIds.witness2,
-                signatureKey: witness2FieldKeys.signature,
+                signatureKey: witness2SignatureKey,
                 signatureLabel: "Assinatura",
                 title: "Testemunha 2",
-                witnessNumber: 2,
             });
         }
 
@@ -137,7 +124,6 @@ export function AppointmentSignaturePage() {
         : undefined;
     const canConfirmStep =
         Boolean(currentSignature) &&
-        (!currentStep?.witnessNumber || isWitnessStepValid(currentStep.witnessNumber)) &&
         (currentStep?.id !== signatureStepIds.patient || hasConfirmedConsent) &&
         !isGenerating;
 
@@ -154,19 +140,6 @@ export function AppointmentSignaturePage() {
         }
     }, [currentStep, hasAppointmentData, navigate, requestedStepId]);
 
-    function isWitnessStepValid(witnessNumber: 1 | 2) {
-        const witnessFieldKeys = getWitnessFieldKeys(witnessNumber);
-        const needsName = fieldKeys.has(witnessFieldKeys.name);
-        const needsCpf = fieldKeys.has(witnessFieldKeys.cpf);
-        const needsSignature = fieldKeys.has(witnessFieldKeys.signature);
-
-        return (
-            (!needsName || hasRequiredValue(values[witnessFieldKeys.name])) &&
-            (!needsCpf || hasRequiredValue(values[witnessFieldKeys.cpf])) &&
-            (!needsSignature || Boolean(signatures[witnessFieldKeys.signature]))
-        );
-    }
-
     function navigateToStep(step: SignatureFlowStep) {
         navigate(`${appPaths.appointment.signature}?etapa=${step.id}`);
     }
@@ -182,13 +155,6 @@ export function AppointmentSignaturePage() {
         navigate(appPaths.appointment.review);
     }
 
-    function updateWitnessValue(fieldKey: string, value: string) {
-        setValues((currentValues) => ({
-            ...currentValues,
-            [fieldKey]: value,
-        }));
-    }
-
     function validateCurrentStep() {
         if (!currentStep) {
             return false;
@@ -202,26 +168,6 @@ export function AppointmentSignaturePage() {
         if (currentStep.id === signatureStepIds.patient && !hasConfirmedConsent) {
             setError("Confirme que leu e compreendeu os termos antes de continuar.");
             return false;
-        }
-
-        if (currentStep.witnessNumber) {
-            const witnessFieldKeys = getWitnessFieldKeys(currentStep.witnessNumber);
-
-            if (
-                fieldKeys.has(witnessFieldKeys.name) &&
-                !hasRequiredValue(values[witnessFieldKeys.name])
-            ) {
-                setError("Informe o nome completo da testemunha antes de continuar.");
-                return false;
-            }
-
-            if (
-                fieldKeys.has(witnessFieldKeys.cpf) &&
-                !hasRequiredValue(values[witnessFieldKeys.cpf])
-            ) {
-                setError("Informe o CPF da testemunha antes de continuar.");
-                return false;
-            }
         }
 
         return true;
@@ -277,56 +223,6 @@ export function AppointmentSignaturePage() {
         await generateDocuments();
     }
 
-    function renderWitnessFields(witnessNumber: 1 | 2) {
-        const witnessFieldKeys = getWitnessFieldKeys(witnessNumber);
-        const showName = fieldKeys.has(witnessFieldKeys.name);
-        const showCpf = fieldKeys.has(witnessFieldKeys.cpf);
-
-        if (!showName && !showCpf) {
-            return null;
-        }
-
-        return (
-            <div className="witness-fields">
-                {showName ? (
-                    <label className="witness-field">
-                        <span>Nome completo</span>
-                        <input
-                            disabled={isGenerating}
-                            onChange={(event) =>
-                                updateWitnessValue(
-                                    witnessFieldKeys.name,
-                                    event.target.value,
-                                )
-                            }
-                            type="text"
-                            value={values[witnessFieldKeys.name] ?? ""}
-                        />
-                    </label>
-                ) : null}
-
-                {showCpf ? (
-                    <label className="witness-field">
-                        <span>CPF</span>
-                        <input
-                            disabled={isGenerating}
-                            inputMode="numeric"
-                            onChange={(event) =>
-                                updateWitnessValue(
-                                    witnessFieldKeys.cpf,
-                                    formatCpf(event.target.value),
-                                )
-                            }
-                            placeholder="000.000.000-00"
-                            type="text"
-                            value={values[witnessFieldKeys.cpf] ?? ""}
-                        />
-                    </label>
-                ) : null}
-            </div>
-        );
-    }
-
     if (!hasAppointmentData || !currentStep) {
         return (
             <section className="appointment-signature-page">
@@ -354,10 +250,6 @@ export function AppointmentSignaturePage() {
                     signatureLabel={currentStep.signatureLabel}
                     title={currentStep.title}
                 >
-                    {currentStep.witnessNumber
-                        ? renderWitnessFields(currentStep.witnessNumber)
-                        : null}
-
                     {currentStep.id === signatureStepIds.patient ? (
                         <label className="signature-confirmation">
                             <input
