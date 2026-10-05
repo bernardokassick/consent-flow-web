@@ -13,6 +13,12 @@ import type { PdfTemplate } from "../../types/PdfTemplate";
 import { getApiErrorMessage, isRequestCanceled } from "../../utils/apiError";
 import "./AppointmentReviewPage.css";
 
+const companionAuthorizationKey = "companion_authorization";
+const companionReviewFields = [
+    { key: "companion_name", label: "Nome do acompanhante" },
+    { key: "companion_relationship", label: "Relação com o paciente" },
+] as const;
+
 export function AppointmentReviewPage() {
     const navigate = useNavigate();
     const { fields, selectedTemplates, values } = useAppointment();
@@ -32,6 +38,13 @@ export function AppointmentReviewPage() {
     const abortPreviewRef = useRef<AbortController | null>(null);
     const hasAppointmentData =
         selectedTemplates.length > 0 && fields.length > 0;
+    const fieldKeys = useMemo(
+        () => new Set(fields.map((field) => field.key)),
+        [fields],
+    );
+    const hasCompanionAuthorization = fieldKeys.has(companionAuthorizationKey);
+    const isCompanionAuthorized =
+        values[companionAuthorizationKey] === "authorized";
 
     async function loadTemplates(signal?: AbortSignal) {
         if (isLoadingTemplatesRef.current) {
@@ -283,6 +296,36 @@ export function AppointmentReviewPage() {
                                     </button>
                                 );
                             })}
+                        </div>
+                    ) : null}
+
+                    {hasCompanionAuthorization ? (
+                        <div className="review-data-summary">
+                            <h3>Dados do acompanhante</h3>
+                            <dl>
+                                <div>
+                                    <dt>Autorização de acompanhante</dt>
+                                    <dd>
+                                        {isCompanionAuthorized
+                                            ? "Autorizado"
+                                            : values[
+                                                    companionAuthorizationKey
+                                                ] === "not_authorized"
+                                              ? "Não autorizado"
+                                              : "Não informado"}
+                                    </dd>
+                                </div>
+                                {isCompanionAuthorized
+                                    ? companionReviewFields.map((reviewField) =>
+                                          fieldKeys.has(reviewField.key) ? (
+                                              <div key={reviewField.key}>
+                                                  <dt>{reviewField.label}</dt>
+                                                  <dd>{values[reviewField.key]}</dd>
+                                              </div>
+                                          ) : null,
+                                      )
+                                    : null}
+                            </dl>
                         </div>
                     ) : null}
 

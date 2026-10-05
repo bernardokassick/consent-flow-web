@@ -25,6 +25,11 @@ const fieldOrders = {
     ],
     guardian: ["guardian_name", "guardian_cpf", "guardian_relationship"],
     doctor: ["doctor_specialty"],
+    companion: [
+        "companion_authorization",
+        "companion_name",
+        "companion_relationship",
+    ],
 };
 
 const groupedFieldPrefixes = ["patient_", "guardian_", "doctor_"];
@@ -55,8 +60,24 @@ const phoneFieldKeys = new Set([
 ]);
 const emailFieldKeys = new Set(["patient_email"]);
 const requiredPatientFieldKeys = new Set(["patient_name", "patient_cpf"]);
+const companionAuthorizationKey = "companion_authorization";
+const companionDetailFieldKeys = new Set([
+    "companion_name",
+    "companion_relationship",
+]);
 
-type PatientFieldErrors = Partial<Record<"patient_name" | "patient_cpf", string>>;
+const singleChoiceFields = {
+    [companionAuthorizationKey]: {
+        question: "Autoriza a participação do acompanhante?",
+        options: [
+            { label: "Autorizo", value: "authorized" },
+            { label: "Não autorizo", value: "not_authorized" },
+        ],
+    },
+} as const;
+const companionAuthorizationValues = new Set(["authorized", "not_authorized"]);
+
+type AppointmentFieldErrors = Partial<Record<string, string>>;
 
 type AppointmentFieldSection = {
     kind: "default" | "doctor";
@@ -125,7 +146,7 @@ function getFieldClassName(field: PdfField) {
         "guardian_name",
     ]);
 
-    return fullWidthFields.has(field.key)
+    return fullWidthFields.has(field.key) || field.type === "SINGLE_CHOICE"
         ? "appointment-field full-width"
         : "appointment-field";
 }
@@ -152,12 +173,24 @@ function groupFieldsBySection(fields: PdfField[]): AppointmentFieldSection[] {
         ),
         fieldOrders.doctor,
     );
-    const otherFields = renderableFields.filter(
+    const unsortedOtherFields = renderableFields.filter(
         (field) =>
             !groupedFieldPrefixes.some((prefix) =>
                 field.key.startsWith(prefix),
             ),
     );
+    const companionFields = sortFieldsByPreferredOrder(
+        unsortedOtherFields.filter((field) =>
+            fieldOrders.companion.includes(field.key),
+        ),
+        fieldOrders.companion,
+    );
+    const otherFields = [
+        ...companionFields,
+        ...unsortedOtherFields.filter(
+            (field) => !fieldOrders.companion.includes(field.key),
+        ),
+    ];
 
     return [
         {
@@ -186,6 +219,19 @@ function groupFieldsBySection(fields: PdfField[]): AppointmentFieldSection[] {
         Boolean(
             section && (section.kind === "doctor" || section.fields.length > 0),
         ),
+    );
+}
+
+function getVisibleFields(fields: PdfField[], values: Record<string, string>) {
+    const hasCompanionAuthorization = fields.some(
+        (field) => field.key === companionAuthorizationKey,
+    );
+
+    return fields.filter(
+        (field) =>
+            !companionDetailFieldKeys.has(field.key) ||
+            (hasCompanionAuthorization &&
+                values[companionAuthorizationKey] === "authorized"),
     );
 }
 
@@ -253,11 +299,11 @@ function getSectionDescription(section: AppointmentFieldSection) {
     return "Preencha os campos encontrados nos termos de consentimento.";
 }
 
-function getPatientFieldErrors(
+function getFieldErrors(
     fields: PdfField[],
     values: Record<string, string>,
-): PatientFieldErrors {
-    const errors: PatientFieldErrors = {};
+): AppointmentFieldErrors {
+    const errors: AppointmentFieldErrors = {};
     const fieldKeys = new Set(fields.map((field) => field.key));
 
     if (fieldKeys.has("patient_name") && !values.patient_name?.trim()) {
@@ -271,6 +317,27 @@ function getPatientFieldErrors(
         !isValidCpf(values.patient_cpf)
     ) {
         errors.patient_cpf = "CPF inválido.";
+    }
+
+    if (
+        fieldKeys.has(companionAuthorizationKey) &&
+        !companionAuthorizationValues.has(values[companionAuthorizationKey])
+    ) {
+        errors[companionAuthorizationKey] = "Selecione uma opção.";
+    }
+
+    if (values[companionAuthorizationKey] === "authorized") {
+        if (fieldKeys.has("companion_name") && !values.companion_name?.trim()) {
+            errors.companion_name = "Nome do acompanhante é obrigatório.";
+        }
+
+        if (
+            fieldKeys.has("companion_relationship") &&
+            !values.companion_relationship?.trim()
+        ) {
+            errors.companion_relationship =
+                "Relação com o paciente é obrigatória.";
+        }
     }
 
     return errors;
@@ -298,9 +365,9 @@ export function AppointmentFillPage() {
     const hasAppointmentData =
         selectedTemplates.length > 0 && fields.length > 0;
     const requiresDoctor = useMemo(() => hasDoctorFields(fields), [fields]);
-    const fieldSections = groupFieldsBySection(fields);
-    const patientFieldErrors = hasAttemptedToContinue
-        ? getPatientFieldErrors(fields, values)
+    const fieldSections = groupFieldsBySection(getVisibleFields(fields, values));
+    const fieldErrors = hasAttemptedToContinue
+        ? getFieldErrors(fields, values)
         : {};
 
     async function loadDoctors(signal?: AbortSignal) {
@@ -371,6 +438,25 @@ export function AppointmentFillPage() {
         }));
     }
 
+    function updateSingleChoiceValue(field: string, value: string) {
+        setValues((currentValues) => {
+            const nextValues = {
+                ...currentValues,
+                [field]: value,
+            };
+
+            if (
+                field === companionAuthorizationKey &&
+                value !== "authorized"
+            ) {
+                delete nextValues.companion_name;
+                delete nextValues.companion_relationship;
+            }
+
+            return nextValues;
+        });
+    }
+
     function updateDoctorSelection(doctorId: string) {
         const doctor = doctors.find((doctorItem) => doctorItem.id === doctorId);
 
@@ -404,15 +490,15 @@ export function AppointmentFillPage() {
 
         setHasAttemptedToContinue(true);
 
-        const hasPatientFieldErrors =
-            Object.keys(getPatientFieldErrors(fields, values)).length > 0;
+        const hasFieldErrors =
+            Object.keys(getFieldErrors(fields, values)).length > 0;
 
         if (requiresDoctor && !selectedDoctorId) {
             setDoctorValidationError("Selecione o médico responsável.");
         }
 
         if (
-            hasPatientFieldErrors ||
+            hasFieldErrors ||
             (requiresDoctor && !selectedDoctorId)
         ) {
             return;
@@ -423,12 +509,66 @@ export function AppointmentFillPage() {
 
     function renderField(field: PdfField) {
         const fieldType = resolveFieldType(field);
-        const isRequiredPatientField = requiredPatientFieldKeys.has(field.key);
-        const fieldError =
-            field.key === "patient_name" || field.key === "patient_cpf"
-                ? patientFieldErrors[field.key]
-                : undefined;
+        const isRequiredField =
+            requiredPatientFieldKeys.has(field.key) ||
+            (values[companionAuthorizationKey] === "authorized" &&
+                companionDetailFieldKeys.has(field.key));
+        const fieldError = fieldErrors[field.key];
         const errorId = `appointment-field-${field.key}-error`;
+
+        if (fieldType === "SINGLE_CHOICE") {
+            const choiceField =
+                singleChoiceFields[
+                    field.key as keyof typeof singleChoiceFields
+                ];
+
+            if (!choiceField) {
+                return null;
+            }
+
+            return (
+                <fieldset
+                    aria-describedby={fieldError ? errorId : undefined}
+                    aria-invalid={Boolean(fieldError)}
+                    className={`appointment-field appointment-choice-field full-width${fieldError ? " invalid" : ""}`}
+                    key={field.key}
+                >
+                    <legend>
+                        {choiceField.question}
+                        <span
+                            aria-hidden="true"
+                            className="appointment-required-marker"
+                        >
+                            {" *"}
+                        </span>
+                    </legend>
+                    <div className="appointment-choice-options">
+                        {choiceField.options.map((option) => (
+                            <label key={option.value}>
+                                <input
+                                    checked={values[field.key] === option.value}
+                                    name={`appointment-field-${field.key}`}
+                                    onChange={() =>
+                                        updateSingleChoiceValue(
+                                            field.key,
+                                            option.value,
+                                        )
+                                    }
+                                    type="radio"
+                                    value={option.value}
+                                />
+                                <span>{option.label}</span>
+                            </label>
+                        ))}
+                    </div>
+                    {fieldError ? (
+                        <p className="appointment-field-error" id={errorId}>
+                            {fieldError}
+                        </p>
+                    ) : null}
+                </fieldset>
+            );
+        }
 
         return (
             <div className={getFieldClassName(field)} key={field.key}>
@@ -448,7 +588,7 @@ export function AppointmentFillPage() {
                     <>
                         <label htmlFor={`appointment-field-${field.key}`}>
                             {field.label}
-                            {isRequiredPatientField ? (
+                            {isRequiredField ? (
                                 <span
                                     aria-hidden="true"
                                     className="appointment-required-marker"

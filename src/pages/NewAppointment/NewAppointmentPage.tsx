@@ -18,6 +18,7 @@ export function NewAppointmentPage() {
         setFields,
         setSelectedTemplates,
         setSignatures,
+        setValues,
     } = useAppointment();
     const [templates, setTemplates] = useState<PdfTemplate[]>([]);
     const [isLoadingTemplates, setIsLoadingTemplates] = useState(true);
@@ -170,8 +171,37 @@ export function NewAppointmentPage() {
             setContinueError(null);
 
             const fields = await getPdfFields(selectedTemplates);
+            const fieldKeys = new Set(fields.map((field) => field.key));
 
             setFields(fields);
+            setValues((currentValues) => {
+                const nextValues = { ...currentValues };
+                const hasCompanionAuthorization = fieldKeys.has(
+                    "companion_authorization",
+                );
+
+                if (!hasCompanionAuthorization) {
+                    delete nextValues.companion_authorization;
+                }
+
+                if (
+                    !hasCompanionAuthorization ||
+                    nextValues.companion_authorization !== "authorized" ||
+                    !fieldKeys.has("companion_name")
+                ) {
+                    delete nextValues.companion_name;
+                }
+
+                if (
+                    !hasCompanionAuthorization ||
+                    nextValues.companion_authorization !== "authorized" ||
+                    !fieldKeys.has("companion_relationship")
+                ) {
+                    delete nextValues.companion_relationship;
+                }
+
+                return nextValues;
+            });
             setSignatures((currentSignatures) =>
                 filterSignaturesForFields(currentSignatures, fields),
             );

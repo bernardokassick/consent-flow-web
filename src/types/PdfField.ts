@@ -4,6 +4,7 @@ export type PdfFieldType =
     | "DATE"
     | "PHONE"
     | "EMAIL"
+    | "SINGLE_CHOICE"
     | "SIGNATURE";
 
 export interface PdfField {
