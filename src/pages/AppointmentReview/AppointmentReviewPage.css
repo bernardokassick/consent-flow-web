@@ -95,6 +95,43 @@
     gap: 12px;
 }
 
+.review-data-summary {
+    margin-top: 24px;
+    padding-top: 22px;
+    border-top: 1px solid #e7edf6;
+}
+
+.review-data-summary h3 {
+    margin: 0 0 14px;
+    color: var(--ink);
+    font-size: 16px;
+}
+
+.review-data-summary dl {
+    display: grid;
+    gap: 14px;
+    margin: 0;
+}
+
+.review-data-summary dl > div {
+    display: grid;
+    gap: 3px;
+}
+
+.review-data-summary dt {
+    color: var(--muted);
+    font-size: 12px;
+    font-weight: 700;
+}
+
+.review-data-summary dd {
+    margin: 0;
+    color: var(--ink);
+    font-size: 14px;
+    font-weight: 700;
+    overflow-wrap: anywhere;
+}
+
 .review-document-item {
     display: flex;
     width: 100%;
