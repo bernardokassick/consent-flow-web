@@ -11,6 +11,7 @@ import {
 } from "../../services/pdfService";
 import type { PdfTemplate } from "../../types/PdfTemplate";
 import { getApiErrorMessage, isRequestCanceled } from "../../utils/apiError";
+import { getContractFields } from "../../utils/contractFields";
 import "./AppointmentReviewPage.css";
 
 const companionAuthorizationKey = "companion_authorization";
@@ -43,6 +44,7 @@ export function AppointmentReviewPage() {
         [fields],
     );
     const hasCompanionAuthorization = fieldKeys.has(companionAuthorizationKey);
+    const contractFields = getContractFields(fields);
     const isCompanionAuthorized =
         values[companionAuthorizationKey] === "authorized";
 
@@ -325,6 +327,20 @@ export function AppointmentReviewPage() {
                                           ) : null,
                                       )
                                     : null}
+                            </dl>
+                        </div>
+                    ) : null}
+
+                    {contractFields.length > 0 ? (
+                        <div className="review-data-summary">
+                            <h3>Dados do contrato</h3>
+                            <dl>
+                                {contractFields.map((field) => (
+                                    <div key={field.key}>
+                                        <dt>{field.label}</dt>
+                                        <dd>{values[field.key] || "Não informado"}</dd>
+                                    </div>
+                                ))}
                             </dl>
                         </div>
                     ) : null}

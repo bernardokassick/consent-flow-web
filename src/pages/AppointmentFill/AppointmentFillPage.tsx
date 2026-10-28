@@ -10,7 +10,8 @@ import { getDoctors } from "../../services/doctorService";
 import type { Doctor } from "../../types/Doctor";
 import type { PdfField, PdfFieldType } from "../../types/PdfField";
 import { getApiErrorMessage, isRequestCanceled } from "../../utils/apiError";
-import { formatCpf, formatPhone, isValidCpf } from "../../utils/masks";
+import { formatCpf, formatMoney, formatPhone, isValidCpf } from "../../utils/masks";
+import { getContractFields, isContractField } from "../../utils/contractFields";
 import "./AppointmentFillPage.css";
 
 const fieldOrders = {
@@ -175,6 +176,7 @@ function groupFieldsBySection(fields: PdfField[]): AppointmentFieldSection[] {
     );
     const unsortedOtherFields = renderableFields.filter(
         (field) =>
+            !isContractField(field) &&
             !groupedFieldPrefixes.some((prefix) =>
                 field.key.startsWith(prefix),
             ),
@@ -212,6 +214,11 @@ function groupFieldsBySection(fields: PdfField[]): AppointmentFieldSection[] {
             : null,
         {
             kind: "default" as const,
+            title: "Dados do contrato",
+            fields: getContractFields(renderableFields),
+        },
+        {
+            kind: "default" as const,
             title: "Outras informações",
             fields: otherFields,
         },
@@ -236,7 +243,7 @@ function getVisibleFields(fields: PdfField[], values: Record<string, string>) {
 }
 
 function getInputMode(fieldType: PdfFieldType) {
-    if (fieldType === "CPF") {
+    if (fieldType === "CPF" || fieldType === "MONEY") {
         return "numeric";
     }
 
@@ -276,6 +283,10 @@ function getAutoComplete(fieldType: PdfFieldType) {
 }
 
 function formatFieldValue(fieldType: PdfFieldType, value: string) {
+    if (fieldType === "MONEY") {
+        return formatMoney(value);
+    }
+
     if (fieldType === "CPF") {
         return formatCpf(value);
     }

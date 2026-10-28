@@ -1,5 +1,6 @@
 export type PdfFieldType =
     | "TEXT"
+    | "MONEY"
     | "CPF"
     | "DATE"
     | "PHONE"
