@@ -1,3 +1,17 @@
+export function formatMoney(value: string): string {
+    const digits = value.replace(/\D/g, "");
+
+    if (!digits) {
+        return "";
+    }
+
+    // Work with digit strings so even large amounts retain exact cents.
+    const cents = digits.replace(/^0+/, "").padStart(3, "0");
+    const integerPart = cents.slice(0, -2).replace(/\B(?=(\d{3})+(?!\d))/g, ".");
+
+    return `R$ ${integerPart},${cents.slice(-2)}`;
+}
+
 export function formatCpf(value: string): string {
     const digits = value.replace(/\D/g, "").slice(0, 11);
 
